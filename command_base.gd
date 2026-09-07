@@ -99,139 +99,47 @@ func get_help_string(full_string:bool=false) -> String:
 	return help
 
 
-func _route(ctx:Context, completion:Completion=null): # shared by both passes
+func _route(ctx:Context, completion:Completion=null):
 	_initialize(ctx)
-
-	if PRINT_DEBUG:
-		print("UNCONSUMED BEFORE::", ctx.unconsumed_tokens)
-
-	#var self_command_data = __get_self_command_data__()
-	var consume_exit = _consume_self(ctx)
-	if consume_exit == ExitCode.HELP:
-		if ctx.execute:
-			_get_help_for_token(consumed_tokens.back())
-		return ExitCode.HELP
-	var flags = get_flags()
-	var commands = get_commands()
-	var consumed = 0
-	var positional_count = 0
-	var selected = null
-	#for token in ctx.unconsumed_tokens:
-	var i = 0
-	while i < ctx.unconsumed_tokens.size():
-		var token = ctx.unconsumed_tokens[i]
-		i += 1
-		if token == "--help":
-			if ctx.execute: # i - 2 because we added 1 right away
-				if i == 1:
-					_get_help_for_token(consumed_tokens.back())
-				else:
-					_get_help_for_token(ctx.unconsumed_tokens[i - 2])
-			return ExitCode.HELP
-
-		var full_token = token # keep full to pass to flag
-		token = _split_flag(token)
-		var option_data = _get_option_data(token, flags, commands)
-		if PRINT_DEBUG:
-			print("DATA::", option_data)
-		if token.begins_with("--") and not token == "--":
-			if token in flags:
-				# if flag has a token to consume after, unhandled currently
-				_process_flag(full_token)
-				consumed += 1
-			else:
-				if completion != null and full_token == completion.token_before_cursor:
-					break
-				ctx.append_error("Unrecognized flag: " + token)
-				return ExitCode.ERR
-		elif token in commands:
-			if option_data.has(&"get_command"):
-				selected = option_data.get_command.call()
-			else:
-				selected = _get_command(token)
-			break
-		else:
-			positional_arg_index = 0 # set this to 0, -1 will be an invalid index or payload
-			for j in range(consumed, ctx.unconsumed_tokens.size()):
-				positional_count += 1
-
-			if ctx.execute:
-				if ctx.unconsumed_tokens.is_empty(): # not sure about this, think it's irrelavant
-					selected = ExitCode.FAIL
-				else:
-					selected = null # ExitCode will cause an exit. null will attempt execute
-					#for j in range(consumed, ctx.unconsumed_tokens.size()):
-						#positional_count += 1
-				break
-			elif token != completion.token_before_cursor:# or completion.char_before_cursor == " ": # if you are past the current or char is ' ', do nothing?
-				# meant to stop a completion if you are not at the end of the line
-				# this may need some tweaking so that token before cursor is the token under cursor?
-				#selected = ExitCode.FAIL
-				break
-			else:
-				break
-
-	if ctx.execute and selected is ExitCode and selected == ExitCode.FAIL:
-		_get_help_for_token(ctx.unconsumed_tokens.front())
-
-	for j in range(consumed):
-		_consume_token(ctx)
-
+	var result = _consume_self(ctx)
+	if result != ExitCode.OK: return result
 	var in_payload = false
-	var unwrap_setting = _unwrap_quotes()
-	for j in range(positional_count):
-		var pos_arg = _consume_token(ctx)
-		var is_string:bool = UString.is_string_or_string_name(pos_arg)
-		var tok_b_curs = completion.token_before_cursor if completion != null else ""
-		if PRINT_DEBUG and completion != null:
-			print(":", completion.char_before_cursor, ":", tok_b_curs.length(), ":", tok_b_curs, ":", pos_arg.length(), ":", pos_arg, ":")
-
-		var is_token_before_curs = completion != null and tok_b_curs.replace(" ", "") == pos_arg.replace(" ", "")
-		var new_token_index = false
-		if is_token_before_curs:
-			new_token_index = completion.char_before_cursor == " " and not UString.is_string_or_string_name(tok_b_curs) and not tok_b_curs.ends_with(" ")
-
+	while not ctx.unconsumed_tokens.is_empty():
+		var token:String = ctx.unconsumed_tokens[0]
+		var meta = ctx._token_metadata.front() if not ctx._token_metadata.is_empty() else {}
+		var literal = meta.get("literal", false)
+		if not in_payload and not literal:
+			if token == "--help":
+				if ctx.execute: ctx.append_output(get_help_string(true))
+				return ExitCode.HELP
+			if token == "--":
+				_consume_token(ctx)
+				in_payload = true
+				continue
+			if token.begins_with("--"):
+				var flag = _split_flag(token)
+				if not get_flags().has(flag):
+					if completion != null and ctx.unconsumed_tokens.size() == 1: break
+					ctx.append_error("Unrecognized flag: " + flag)
+					return ExitCode.ERR
+				_process_flag(_consume_token(ctx))
+				continue
+			if positional_args.is_empty():
+				var commands = get_commands()
+				if commands.has(token):
+					var data = commands[token]
+					return data.get_command.call() if data.has("get_command") else _get_command(token)
+		var value = _consume_token(ctx)
+		if in_payload: payload.append(value)
+		else: positional_args.append(value)
+	if completion != null:
+		var next = completion.char_before_cursor in [" ", "\t", "\n", ""]
 		if in_payload:
-			if is_token_before_curs:
-				payload_index = payload.size()
-				if new_token_index:
-					payload_index += 1
-			if is_string:
-				pos_arg = _route_unwrap(pos_arg, unwrap_setting)
-			payload.append(pos_arg)
-			continue
-		elif pos_arg == "--":
-			in_payload = true
+			payload_index = payload.size() if next else maxi(0, payload.size() - 1)
 			positional_arg_index = -1
-			payload_index = 0
-			continue
-		elif not is_string and pos_arg.begins_with("--"):
-			var split = _split_flag(pos_arg)
-			if not split in flags:
-				ctx.append_error("Unrecognized flag: " + split)
-				return ExitCode.ERR
-			_process_flag(pos_arg)  # check flags after the positionals
-			continue
 		else:
-			if is_token_before_curs:
-				positional_arg_index = positional_args.size()
-				if new_token_index:
-					positional_arg_index += 1
-			if is_string:
-				pos_arg = _route_unwrap(pos_arg, unwrap_setting)
-
-			positional_args.append(pos_arg)
-
-	if PRINT_DEBUG:
-		print("UNCONSUMED AFTER::", ctx.unconsumed_tokens)
-	return selected
-
-func _route_unwrap(string:String, unwrap_setting:int) -> String:
-	if unwrap_setting > 0 and string.length() > 1:
-		var quote_char = string[0]
-		if unwrap_setting == 2 or quote_char == '"':
-			string = UString.unquote(string)
-	return string
+			positional_arg_index = positional_args.size() if next else maxi(0, positional_args.size() - 1)
+	return null
 
 func _consume_self(ctx:Context) -> ExitCode:
 	_consume_token(ctx)
@@ -239,6 +147,7 @@ func _consume_self(ctx:Context) -> ExitCode:
 
 func _consume_token(ctx:Context):
 	var tok = ctx.unconsumed_tokens.pop_front()
+	if not ctx._token_metadata.is_empty(): ctx._token_metadata.pop_front()
 	consumed_tokens.append(tok)
 	return tok
 
@@ -359,7 +268,6 @@ func _get_flag_value(token:String):
 	if not token.contains("="):
 		return ""
 	var val = token.substr(token.find("=") + 1)
-	val = UString.unquote(val)
 	return val
 
 #! keys i-Options.add_option;
@@ -455,10 +363,6 @@ func _get_target_positional_count() -> int:
 
 
 	return 0
-
-## 0=No unwrap, 1=doubles, 2=both
-func _unwrap_quotes():
-	return 2
 
 func _positional_arg_index_valid():
 	var target_pos_count = _get_target_positional_count()

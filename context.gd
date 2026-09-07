@@ -16,6 +16,9 @@ var title:String
 
 var execute:bool = true
 var unconsumed_tokens:= []
+# Parallel source metadata keeps quoted flag-like arguments literal.
+var _token_metadata:Array = []
+var _function_cache:Dictionary = {}
 var data := {}
 
 var parent_ctx:Context
@@ -54,6 +57,9 @@ func execute_parse():
 	tokenizer.execute = true
 	var token_data = tokenizer.parse_command_string_execute(raw_text)
 	unconsumed_tokens = token_data.expanded
+	_token_metadata = token_data.metadata
+	if not token_data.error.is_empty():
+		load("res://addons/addon_lib/gdsh/execute.gd")._parse_error(self, token_data.error)
 	execute = true
 
 func tokens_empty_and_execute() -> bool:
@@ -129,6 +135,7 @@ static func new_ctx(text:String, parent:Context=null, sub_shell:=false):
 		 # non piped inherit stdin, this will be overwritten if piped
 		ctx.stdin = parent.stdin
 		ctx.last_status = parent.last_status
+		ctx.positional_args = parent.positional_args.duplicate()
 
 	return ctx
 

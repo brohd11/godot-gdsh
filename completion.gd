@@ -2,7 +2,8 @@ extends RefCounted
 ## A UI-independent completion request. Routing operates on an isolated context.
 
 const Context = preload("res://addons/addon_lib/gdsh/context.gd")
-const Tokenizer = preload("res://addons/addon_lib/gdsh/internal/tokenizer.gd")
+const Parser = preload("res://addons/addon_lib/gdsh/internal/parser.gd")
+const Expansion = preload("res://addons/addon_lib/gdsh/internal/expansion.gd")
 const Options = preload("res://addons/addon_lib/gdsh/options.gd")
 const Types = preload("res://addons/addon_lib/gdsh/internal/types.gd")
 
@@ -21,6 +22,7 @@ var show_flags:bool = true
 
 var _session:Context
 var _current_command:String
+var _redirect:bool = false
 
 func _init(text:String, session:Context, caret:int=-1):
 	raw_text = text
@@ -30,6 +32,10 @@ func _init(text:String, session:Context, caret:int=-1):
 func get_completions() -> Dictionary:
 	_parse()
 	var options = Options.new()
+	if _redirect:
+		options.add_option("discard")
+		options.add_option("/dev/null")
+		return options.get_options()
 	if token_before_cursor.begins_with("@") and not char_before_cursor in [" ", "\t"]:
 		for name in context.aliases:
 			options.add_option(name, {&"insert": name})
@@ -100,21 +106,32 @@ func _parse():
 	payload_args = []
 	payload_arg_index = -1
 	var prefix = raw_text.left(clampi(caret_col, 0, raw_text.length()))
-	_current_command = _command_at_caret(prefix)
+	var parsed = Parser.parse(prefix, true)
+	var current = parsed.completion
+	_current_command = prefix.substr(current.start).strip_edges(true, false)
 	context.raw_text = _current_command
 	char_before_cursor = prefix.right(1)
-	var tokenizer = Tokenizer.new(context)
-	var tokens = tokenizer.parse_command_string_completion(_current_command)
-	context.unconsumed_tokens = Array(tokens.expanded)
-	var typed = Array(tokens.commands)
-	var split = Tokenizer.split_args(_current_command)
-	if split[0] != _current_command:
-		context.unconsumed_tokens.append("--")
-		context.unconsumed_tokens.append_array(tokens.args)
-		payload_args = Array(tokens.args)
-		typed.append_array(tokens.raw_args)
-	token_before_cursor = typed.back() if not typed.is_empty() else ""
+	_redirect = current.redirect
+	var words:Array = current.words
+	token_before_cursor = words.back().raw if not words.is_empty() else ""
 	word_before_cursor = token_before_cursor
+	# Alias definitions remain source fragments, but routing never executes them.
+	var seen = {}
+	while true:
+		var changed = false
+		var fragments:Array = []
+		for word in words:
+			if not word.quoted and context.aliases.has(word.raw) and not seen.has(word.raw):
+				seen[word.raw] = true
+				fragments.append(str(context.aliases[word.raw]).trim_prefix("@literal"))
+				changed = true
+			else:
+				fragments.append(word.raw)
+		if not changed: break
+		words = Parser.parse(" ".join(fragments), true).completion.words
+	var expanded = Expansion.words(words, context, true)
+	context.unconsumed_tokens = expanded.values
+	context._token_metadata = expanded.metadata
 
 func in_arguments() -> bool:
 	return payload_arg_index > -1
@@ -122,32 +139,3 @@ func in_arguments() -> bool:
 func get_current_command() -> String:
 	return _current_command
 
-## Find the last top-level separator; quoted text and substitutions are kept intact.
-static func _command_at_caret(prefix:String) -> String:
-	var start = 0
-	var quote = ""
-	var escaped = false
-	var depth = 0
-	for i in prefix.length():
-		var ch = prefix[i]
-		if escaped:
-			escaped = false
-			continue
-		if ch == "\\" and quote != "'":
-			escaped = true
-			continue
-		if quote != "":
-			if ch == quote:
-				quote = ""
-			continue
-		if ch in ["'", '"']:
-			quote = ch
-		elif ch == "(":
-			depth += 1
-		elif ch == ")":
-			depth = maxi(0, depth - 1)
-		elif depth == 0 and ch in ["|", ";", "\n"]:
-			start = i + 1
-		elif depth == 0 and ch == "&" and i > 0 and prefix[i - 1] == "&":
-			start = i + 1
-	return prefix.substr(start).strip_edges(true, false)

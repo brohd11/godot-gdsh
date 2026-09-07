@@ -26,6 +26,7 @@ func _execute(ctx:Context):
 			ctx.append_error("Invalid return code: " + arg)
 
 	ctx.last_status = code
+	ctx.exit_code = code
 	for inh in ctx.get_inherited_ctxs():
 		if inh.data.has(Types.FUNCTION_KEY):
 			inh.data[Types.RETURN_KEY] = code
