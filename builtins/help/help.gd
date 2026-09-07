@@ -1,0 +1,32 @@
+extends "res://addons/addon_lib/gdsh/command_base.gd"
+## List visible and hidden commands in the current execution context.
+
+const _HELP = "List available visible and hidden GDSh commands."
+
+
+static func get_command_name() -> String:
+	return "help"
+
+
+static func get_self_command_data() -> Dictionary:
+	return _command_data({
+		&"help": _HELP,
+		&"positional_count": 0,
+	})
+
+
+func _execute(ctx:Context) -> void:
+	ctx.append_output(_section("Commands", ctx.scopes) + "\n\n" +
+			_section("Hidden commands", ctx.scopes_hidden))
+
+
+static func _section(title:String, values:Dictionary) -> String:
+	var names:Array[String] = []
+	for name in values:
+		var text = str(name)
+		if not text.begins_with("__"):
+			names.append(text)
+	names.sort()
+	if names.is_empty():
+		return title + ":\n  (none)"
+	return title + ":\n  " + "\n  ".join(names)

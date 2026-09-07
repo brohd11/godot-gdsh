@@ -6,7 +6,7 @@ const Types = preload("res://addons/addon_lib/gdsh/internal/types.gd")
 const CommandBase = preload("res://addons/addon_lib/gdsh/command_base.gd")
 const BUILTIN_NAMES = [
 	"break", "continue", "return", "exit", "shift", "true", "false", "comparison",
-	"expr", "echo", "source", "cd", "function", "run_script",
+	"expr", "echo", "source", "cd", "help", "function", "run_script",
 ]
 
 ## Returns null and reports an error for an invalid command.
@@ -64,4 +64,3 @@ static func load_builtins() -> Dictionary:
 		if script != null:
 			scopes[script.get_command_name()] = {Types.ScopeDataKeys.SCRIPT: script}
 	return scopes
-

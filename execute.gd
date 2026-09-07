@@ -222,7 +222,7 @@ static func _dispatch(ctx:Context):
 	var name:String = ctx.unconsumed_tokens[0]
 	if ctx.functions.has(name):
 		name = Types.FUNCTION_KEY
-	elif not ctx.scopes.has(name):
+	elif not ctx.has_scope(name):
 		if name.is_absolute_path():
 			name = "__run_script__"
 		elif ctx.unconsumed_tokens.has("==") or ctx.unconsumed_tokens.has("!="):
@@ -231,7 +231,8 @@ static func _dispatch(ctx:Context):
 			ctx._token_metadata.push_front({})
 			ctx._token_metadata.push_back({})
 			name = "["
-	var scope = ctx.scopes.get(name, {})
+	var scope = ctx.get_scope(name)
+	if scope == null: scope = {}
 	var script = scope.get(Types.ScopeDataKeys.SCRIPT)
 	if script is GDScript: script = script.new()
 	if is_instance_valid(script) and script.has_method("execute"):

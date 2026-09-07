@@ -3,7 +3,6 @@ extends VBoxContainer
 
 const Context = preload("res://addons/addon_lib/gdsh/context.gd")
 const Execute = preload("res://addons/addon_lib/gdsh/execute.gd")
-const Loader = preload("res://addons/addon_lib/gdsh/load.gd")
 const ConsoleInput = preload("res://addons/addon_lib/gdsh/console_input.gd")
 
 signal command_submitted(text:String)
@@ -87,13 +86,8 @@ func set_context(value:Context) -> void:
 	update_prompt()
 
 
-func load(path:String) -> Dictionary:
-	var resolved = path
-	if not path.is_absolute_path():
-		resolved = context.cwd.path_join(path).simplify_path()
-	var loaded = Loader.load_directory(resolved)
-	context.scopes.merge(loaded, true)
-	return loaded
+func load(path:String, hidden:=false) -> Dictionary:
+	return context.load(path, hidden)
 
 
 func execute(text:String) -> Context:

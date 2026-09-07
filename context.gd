@@ -28,6 +28,8 @@ var variables := {}
 var functions := {}
 var aliases := {}
 var scopes := {}
+## Commands that resolve normally but are omitted from root completion.
+var scopes_hidden := {}
 
 var cwd:String = "res://"
 
@@ -46,20 +48,52 @@ func _init(text:="", include_builtins:=true) -> void:
 	title = text if not text.is_empty() else "GDSh Context"
 	raw_text = text
 	if include_builtins:
-		scopes = load("res://addons/addon_lib/gdsh/load.gd").load_builtins()
+		scopes_hidden = ResourceLoader.load("res://addons/addon_lib/gdsh/load.gd").load_builtins()
+
+
+## Load a command file or directory into this Context. New registrations replace
+## the same name in either visibility dictionary.
+func load(path:String, hidden:=false) -> Dictionary:
+	var resolved = path
+	if not path.is_absolute_path():
+		resolved = cwd.path_join(path).simplify_path()
+	var loader = ResourceLoader.load("res://addons/addon_lib/gdsh/load.gd")
+	var loaded := {}
+	if resolved.get_extension().to_lower() == "gd":
+		var script = loader.load_command(resolved)
+		if script != null:
+			loaded[script.get_command_name()] = {Types.ScopeDataKeys.SCRIPT: script}
+	else:
+		loaded = loader.load_directory(resolved)
+	var target = scopes_hidden if hidden else scopes
+	var other = scopes if hidden else scopes_hidden
+	for name in loaded:
+		other.erase(name)
+		target[name] = loaded[name]
+	return loaded
+
+
+func has_scope(name:String) -> bool:
+	return scopes.has(name) or scopes_hidden.has(name)
+
+
+func get_scope(name:String):
+	if scopes.has(name):
+		return scopes[name]
+	return scopes_hidden.get(name)
 
 func set_positional_args(path_or_name:String, args:Array):
 	variables["$0"] = path_or_name
 	positional_args = args
 
 func execute_parse():
-	var tokenizer = load("res://addons/addon_lib/gdsh/internal/tokenizer.gd").new(self)
+	var tokenizer = ResourceLoader.load("res://addons/addon_lib/gdsh/internal/tokenizer.gd").new(self)
 	tokenizer.execute = true
 	var token_data = tokenizer.parse_command_string_execute(raw_text)
 	unconsumed_tokens = token_data.expanded
 	_token_metadata = token_data.metadata
 	if not token_data.error.is_empty():
-		load("res://addons/addon_lib/gdsh/execute.gd")._parse_error(self, token_data.error)
+		ResourceLoader.load("res://addons/addon_lib/gdsh/execute.gd")._parse_error(self, token_data.error)
 	execute = true
 
 func tokens_empty_and_execute() -> bool:
@@ -97,7 +131,7 @@ func strip_error_newlines():
 	return stderr
 
 func get_variable(name:String):
-	return load("res://addons/addon_lib/gdsh/internal/tokenizer.gd").check_variable(name, self)
+	return ResourceLoader.load("res://addons/addon_lib/gdsh/internal/tokenizer.gd").check_variable(name, self)
 
 func get_root_ctx():
 	var inherited = get_inherited_ctxs()
@@ -118,7 +152,7 @@ func get_inherited_ctxs():
 
 
 static func new_ctx(text:String, parent:Context=null, sub_shell:=false):
-	var ctx = load("res://addons/addon_lib/gdsh/context.gd").new(text, not is_instance_valid(parent))
+	var ctx = ResourceLoader.load("res://addons/addon_lib/gdsh/context.gd").new(text, not is_instance_valid(parent))
 	if is_instance_valid(parent):
 		if not sub_shell: # so that function definitions do not populate up
 			ctx.parent_ctx = parent
@@ -131,6 +165,7 @@ static func new_ctx(text:String, parent:Context=null, sub_shell:=false):
 		ctx.functions = parent.functions.duplicate()
 		ctx.aliases = parent.aliases.duplicate()
 		ctx.scopes = parent.scopes.duplicate()
+		ctx.scopes_hidden = parent.scopes_hidden.duplicate()
 
 		 # non piped inherit stdin, this will be overwritten if piped
 		ctx.stdin = parent.stdin

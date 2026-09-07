@@ -46,7 +46,7 @@ func get_completions() -> Dictionary:
 		return options.get_options()
 
 	var first_word = context.unconsumed_tokens.front() if not context.unconsumed_tokens.is_empty() else ""
-	var scope = context.scopes.get(first_word)
+	var scope = context.get_scope(first_word)
 	if scope == null:
 		if show_commands:
 			for name:String in context.scopes:
@@ -96,6 +96,7 @@ func _parse():
 		context.aliases = _session.aliases.duplicate(true)
 		context.functions = _session.functions.duplicate(true)
 		context.scopes = _session.scopes.duplicate(true)
+		context.scopes_hidden = _session.scopes_hidden.duplicate(true)
 		context.data = _session.data.duplicate(true)
 		context.positional_args = _session.positional_args.duplicate(true)
 		context.stdin = _session.stdin
@@ -138,4 +139,3 @@ func in_arguments() -> bool:
 
 func get_current_command() -> String:
 	return _current_command
-

@@ -60,21 +60,27 @@ Context, command history, completion state, and the result of its last submissio
 ```gdscript
 var console = GDSh.Console.new()
 console.load("res://commands")
+# Executable, but omitted from root completion:
+console.load("res://debug_commands", true)
 add_child(console)
 
 # Optional: add a selectable RichTextLabel transcript above the prompt.
 var transcript = console.create_output()
 ```
 
-`load(path)` loads a command directory and returns its scope dictionary. Relative
-paths resolve from `context.cwd`. Each load is a new layer: matching names replace
-builtins or commands from earlier loads. Use `GDSh.Load.load_command()` when
-loading one command file.
+`load(path, hidden=false)` loads one command `.gd` file or a command directory and
+returns its scope dictionary. Relative paths resolve from `context.cwd`. The
+optional `hidden` argument keeps those commands out of root completion while
+leaving execution and command-specific completion available. Each load is a new
+layer: matching names replace earlier commands and move between visible and hidden
+scopes according to the newest load.
 
 The prompt CodeEdit supports syntax highlighting, delayed completion, Tab to show
-or accept completion, and Up/Down history navigation. Enter submits without adding
-a line. Pasted newlines are converted to spaces. The public `prompt_label`, `input`,
-`prompt_row`, and optional `output` controls can be styled or placed by the host.
+or accept completion, and Up/Down history navigation. Its completion popup grows
+and shrinks with the current choices and scrolls after reaching half the window
+height. Enter submits without adding a line. Pasted newlines are converted to
+spaces. The public `prompt_label`, `input`, `prompt_row`, and optional `output`
+controls can be styled or placed by the host.
 
 ```gdscript
 console.command_submitted.connect(func(text): print("running ", text))
@@ -215,14 +221,20 @@ func _execute(ctx:Context):
 
 ```gdscript
 var context = GDSh.Context.new()
-var command = GDSh.Load.load_command("res://commands/look.gd")
-if command != null:
-    context.scopes[command.get_command_name()] = {"script": command}
-
-# Explicitly choose whether loaded commands replace existing names.
-context.scopes.merge(GDSh.Load.load_directory("res://commands"), true)
+context.load("res://commands/look.gd")
+context.load("res://commands")
+# Hidden commands still execute, but do not appear at the root of completion.
+context.load("res://internal_commands", true)
 GDSh.Execute.execute_command("look", {"parent_ctx": context})
 ```
+
+`Context.scopes` contains visible commands and `Context.scopes_hidden` contains
+hidden commands. `has_scope(name)` and `get_scope(name)` resolve both dictionaries,
+with a visible entry winning if callers directly introduce the same name into
+both. Prefer `Context.load(path, hidden)` when layering commands because it removes
+the matching name from the other dictionary. The lower-level
+`GDSh.Load.load_command()` and `load_directory()` functions remain available when
+manual registration is useful.
 
 Directory loading accepts both immediate `name.gd` files and `name/name.gd`
 entries. A parent such as `door/door.gd` discovers its children in directories such
@@ -255,7 +267,9 @@ Completion owns text, caret and token information, routed positional arguments,
 and payload indices. Each request runs the command router on an isolated Context,
 then calls `_get_completions(completion:Completion)` on the selected command.
 `completion.context` exposes the temporary routing context. Execution Contexts
-have no caret or UI fields.
+have no caret or UI fields. Root suggestions include `Context.scopes` and functions,
+but omit `scopes_hidden`. Once a hidden command name is typed, its flags and child
+commands complete normally.
 
 ```gdscript
 func _get_completions(completion:Completion):
@@ -278,8 +292,12 @@ the host can filter and render them for its UI.
 ## Builtins and dependencies
 
 New contexts register `break`, `continue`, `return`, `exit`, `shift`, `true`,
-`false`, `[`, `expr`, `echo`, `source`, and `cd`, plus internal function and script
-invocation commands. `GDSh.Load.load_builtins()` returns fresh scope data;
+`false`, `[`, `expr`, `echo`, `source`, `cd`, and `help`, plus internal function and
+script invocation commands. All builtins start in `scopes_hidden`, which keeps a
+host's root completion focused on the commands it loads. `help` is also hidden and
+prints sorted `Commands` and `Hidden commands` sections; reserved internal names
+beginning with `__` are omitted. Command-specific documentation remains available
+through `<command> --help`. `GDSh.Load.load_builtins()` returns fresh scope data;
 `GDSh.Context.new("", false)` creates a context without builtins.
 
 The copied language retains assignments, aliases, functions, conditionals, loops,
