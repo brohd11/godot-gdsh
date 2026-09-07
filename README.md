@@ -2,7 +2,7 @@
 
 GDSh is a runtime copy of Editor Console's GDSh execution engine for games and
 application consoles. It requires Godot 4.6 or newer. It has no plugin, autoload,
-editor UI, or Editor Console dependency.
+editor-only UI, or Editor Console dependency.
 
 Editor Console keeps its own implementation, commands, and OS mode. GDSh does not
 include OS mode or the `os` command. A future host adapter would need to preserve
@@ -50,6 +50,66 @@ All three Execute entry points return their resulting Context. Omitting a contex
 creates a fresh session with builtins. `source` executes in the current scope;
 invoking an absolute script path executes in a subshell with `$0`, `$1`, `$#`, and
 `$@`. Quote script paths containing spaces.
+
+## Console component
+
+`GDSh.Console` is an instantiable runtime prompt. It is a `VBoxContainer` with an
+always-present prompt row and a one-line `CodeEdit`. The Console owns its main
+Context, command history, completion state, and the result of its last submission.
+
+```gdscript
+var console = GDSh.Console.new()
+console.load("res://commands")
+add_child(console)
+
+# Optional: add a selectable RichTextLabel transcript above the prompt.
+var transcript = console.create_output()
+```
+
+`load(path)` loads a command directory and returns its scope dictionary. Relative
+paths resolve from `context.cwd`. Each load is a new layer: matching names replace
+builtins or commands from earlier loads. Use `GDSh.Load.load_command()` when
+loading one command file.
+
+The prompt CodeEdit supports syntax highlighting, delayed completion, Tab to show
+or accept completion, and Up/Down history navigation. Enter submits without adding
+a line. Pasted newlines are converted to spaces. The public `prompt_label`, `input`,
+`prompt_row`, and optional `output` controls can be styled or placed by the host.
+
+```gdscript
+console.command_submitted.connect(func(text): print("running ", text))
+console.command_finished.connect(func(text, result):
+    print(result.stdout)
+    printerr(result.stderr)
+)
+
+var result = console.execute("echo hello")
+print(console.context.cwd)
+print(console.last_result.exit_code)
+```
+
+Each submission runs in a linked child Context. Variables, aliases, functions,
+working directory, scopes, and `$?` persist in `console.context`, while stdout,
+stderr, and exit control belong to the returned result. An `exit` command ends its
+submission without disabling later console input. Programmatic `execute()` uses
+the same history, signals, transcript, and state path as Enter.
+
+`create_output()` is optional and idempotent. Its transcript echoes the prompt and
+command, then appends stdout and highlighted stderr. `clear_output()` and
+`clear_history()` provide UI actions without adding shell commands.
+
+The default prompt is `Console $` at `res://`, or `Console <cwd> $` elsewhere.
+Assign a formatter when the host needs different BBCode, then call
+`update_prompt()` after external state changes:
+
+```gdscript
+console.prompt_formatter = func(ctx):
+    return "Room %s >" % ctx.variables.get("$ROOM", "unknown")
+```
+
+Pass an existing Context to `GDSh.Console.new(context)` or replace it later with
+`set_context(context)`. OS mode remains an Editor Console feature and is not part
+of this component.
 
 ## Language and parsing
 
@@ -228,11 +288,11 @@ global-class command dispatch, persistent configuration, and editor method-call
 conveniences are excluded. The existing 100-iteration `while` limit is retained.
 
 This development version imports the runtime addon_lib string utilities, sorting,
-and class-inspection helper under `addons/addon_lib/brohd/alib_runtime/utils/`,
-including their transitive runtime dependencies and UID sidecars. No generated
-ALib namespace is required. Bundling those helpers into a standalone distribution
-is deferred. Internal scripts are implementation details; public entry points are
-exposed through `GDSh`.
+class-inspection helper, and text-highlighting palette under
+`addons/addon_lib/brohd/alib_runtime/`, including their transitive runtime
+dependencies and UID sidecars. No generated ALib namespace is required. Bundling
+those helpers into a standalone distribution is deferred. Internal scripts are
+implementation details; public entry points are exposed through `GDSh`.
 
 Exports must include dynamically loaded command scripts and any `.gdsh` files.
 Use an appropriate export filter (for example, all resources plus `*.gdsh` in the
