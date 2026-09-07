@@ -79,8 +79,11 @@ The prompt CodeEdit supports syntax highlighting, delayed completion, Tab to sho
 or accept completion, and Up/Down history navigation. Its completion popup grows
 and shrinks with the current choices and scrolls after reaching half the window
 height. Enter submits without adding a line. Pasted newlines are converted to
-spaces. The public `prompt_label`, `input`, `prompt_row`, and optional `output`
-controls can be styled or placed by the host.
+spaces. The prompt, input, completion popup, and optional transcript use the
+bundled JetBrains Mono editor source font. The public `prompt_label`, `input`,
+`prompt_row`, and optional `output` controls can be styled or placed by the host.
+The bundled font remains under the SIL Open Font License in
+`internal/source_font.LICENSE.txt`.
 
 ```gdscript
 console.command_submitted.connect(func(text): print("running ", text))
@@ -105,13 +108,25 @@ command, then appends stdout and highlighted stderr. `clear_output()` and
 `clear_history()` provide UI actions without adding shell commands.
 
 The default prompt is `Console $` at `res://`, or `Console <cwd> $` elsewhere.
-Assign a formatter when the host needs different BBCode, then call
+It is light blue by default, including when copied into the transcript. Use
+`set_prompt(text, color)` for a persistent fixed prompt and `reset_prompt()` to
+restore the dynamic default. Assigning a formatter replaces a fixed prompt; call
 `update_prompt()` after external state changes:
 
 ```gdscript
 console.prompt_formatter = func(ctx):
     return "Room %s >" % ctx.variables.get("$ROOM", "unknown")
 ```
+
+`get_text_edit()` and `get_prompt_label()` return the controls used by the
+component. `add_font_override(font)` applies a font to both controls and the
+optional transcript; `remove_font_override()` restores inherited theme fonts.
+The active override also applies when the transcript is created later.
+
+While the input has keyboard focus, it consumes every key press, release, and
+repeat after processing it. The transcript consumes wheel and pan gestures even
+at its scroll limits, preventing those events from reaching gameplay handlers in
+the unhandled-input stages.
 
 Pass an existing Context to `GDSh.Console.new(context)` or replace it later with
 `set_context(context)`. OS mode remains an Editor Console feature and is not part

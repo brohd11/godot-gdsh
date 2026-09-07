@@ -4,6 +4,7 @@ extends CodeEdit
 const Completion = preload("res://addons/addon_lib/gdsh/completion.gd")
 const Options = preload("res://addons/addon_lib/gdsh/options.gd")
 const ConsoleHighlighter = preload("res://addons/addon_lib/gdsh/internal/console_highlighter.gd")
+const SourceFont = preload("res://addons/addon_lib/gdsh/internal/source_font.tres")
 
 signal submit_requested(text:String)
 signal history_requested(direction:int)
@@ -106,6 +107,11 @@ func _accept_completion(choice:String, data:Dictionary) -> void:
 	_on_text_changed()
 
 
+func _shortcut_input(event:InputEvent) -> void:
+	if event is InputEventKey and has_focus():
+		get_viewport().set_input_as_handled()
+
+
 func _on_gui_input(event:InputEvent) -> void:
 	if not event is InputEventKey or not event.pressed or event.echo:
 		return
@@ -162,6 +168,7 @@ class CompletionPopup extends ScrollContainer:
 		_items.auto_height = true
 		_items.auto_width = true
 		_items.max_columns = 1
+		_items.add_theme_font_override("font", SourceFont)
 		_items.item_activated.connect(_on_item_activated)
 		add_child(_items)
 

@@ -4,6 +4,7 @@ extends VBoxContainer
 const Context = preload("res://addons/addon_lib/gdsh/context.gd")
 const Execute = preload("res://addons/addon_lib/gdsh/execute.gd")
 const ConsoleInput = preload("res://addons/addon_lib/gdsh/console_input.gd")
+const SourceFont = preload("res://addons/addon_lib/gdsh/internal/source_font.tres")
 
 signal command_submitted(text:String)
 signal command_finished(text:String, result:Context)
@@ -13,6 +14,7 @@ var last_result:Context
 var prompt_formatter:Callable:
 	set(value):
 		prompt_formatter = value
+		_manual_prompt = false
 		update_prompt()
 
 var prompt_row:HBoxContainer
@@ -23,6 +25,10 @@ var output:RichTextLabel
 var command_history:Array[String] = []
 var _history_index:int = -1
 var _input_panel:PanelContainer
+var _manual_prompt:=false
+var _manual_prompt_text:String
+var _manual_prompt_color:=Color.WHITE
+var _font_override:Font = SourceFont
 
 
 func _init(initial_context:Context=null) -> void:
@@ -68,11 +74,11 @@ func _apply_theme() -> void:
 	var normal = get_theme_stylebox("normal", "LineEdit")
 	if normal != null:
 		_input_panel.add_theme_stylebox_override("panel", normal)
-	var font = get_theme_font("font", "LineEdit")
 	var font_size = get_theme_font_size("font_size", "LineEdit")
-	if font != null:
-		prompt_label.add_theme_font_override("normal_font", font)
-		input.add_theme_font_override("font", font)
+	if _font_override != null:
+		_apply_font_override(_font_override)
+	else:
+		_remove_font_override()
 	if font_size > 0:
 		prompt_label.add_theme_font_size_override("normal_font_size", font_size)
 		input.add_theme_font_size_override("font_size", font_size)
@@ -84,6 +90,36 @@ func set_context(value:Context) -> void:
 	input.context = context
 	last_result = null
 	update_prompt()
+
+
+func get_text_edit() -> CodeEdit:
+	return input
+
+
+func get_prompt_label() -> RichTextLabel:
+	return prompt_label
+
+
+func set_prompt(text:String, color:=Color.WHITE) -> void:
+	_manual_prompt = true
+	_manual_prompt_text = text
+	_manual_prompt_color = color
+	_render_prompt(text, color)
+
+
+func reset_prompt() -> void:
+	_manual_prompt = false
+	prompt_formatter = Callable()
+
+
+func add_font_override(font:Font) -> void:
+	_font_override = font
+	_apply_font_override(font)
+
+
+func remove_font_override() -> void:
+	_font_override = null
+	_remove_font_override()
 
 
 func load(path:String, hidden:=false) -> Dictionary:
@@ -121,8 +157,12 @@ func create_output() -> RichTextLabel:
 	output.selection_enabled = true
 	output.context_menu_enabled = true
 	output.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	output.mouse_filter = Control.MOUSE_FILTER_STOP
+	output.mouse_force_pass_scroll_events = false
+	output.gui_input.connect(_on_output_gui_input)
 	add_child(output)
 	move_child(output, 0)
+	_apply_theme()
 	return output
 
 
@@ -139,10 +179,33 @@ func clear_history() -> void:
 func update_prompt() -> void:
 	if prompt_label == null:
 		return
-	if prompt_formatter.is_valid():
+	if _manual_prompt:
+		_render_prompt(_manual_prompt_text, _manual_prompt_color)
+	elif prompt_formatter.is_valid():
 		prompt_label.text = str(prompt_formatter.call(context))
 	else:
-		prompt_label.text = _default_prompt(context)
+		_render_prompt(_default_prompt(context), Color.LIGHT_BLUE)
+
+
+func _render_prompt(text:String, color:Color) -> void:
+	prompt_label.text = text if color == Color.WHITE else \
+			"[color=%s]%s[/color]" % [color.to_html(), text]
+
+
+func _apply_font_override(font:Font) -> void:
+	prompt_label.add_theme_font_override("normal_font", font)
+	input.add_theme_font_override("font", font)
+	if output != null:
+		output.add_theme_font_override("normal_font", font)
+		output.add_theme_font_override("mono_font", font)
+
+
+func _remove_font_override() -> void:
+	prompt_label.remove_theme_font_override("normal_font")
+	input.remove_theme_font_override("font")
+	if output != null:
+		output.remove_theme_font_override("normal_font")
+		output.remove_theme_font_override("mono_font")
 
 
 static func _default_prompt(ctx:Context) -> String:
@@ -157,6 +220,31 @@ func _on_submit_requested(text:String) -> void:
 	input.clear()
 	if input.is_inside_tree():
 		input.grab_focus()
+
+
+func _on_output_gui_input(event:InputEvent) -> void:
+	if event is InputEventPanGesture:
+		_scroll_output(event.delta.y)
+		accept_event()
+	elif event is InputEventMouseButton and event.button_index in [
+			MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN,
+			MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT,
+	]:
+		if event.pressed and event.button_index in [
+			MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN,
+		]:
+			var direction = -1.0 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0
+			_scroll_output(direction * maxf(event.factor, 1.0))
+		accept_event()
+
+
+func _scroll_output(lines:float) -> void:
+	if output == null or is_zero_approx(lines):
+		return
+	var line_height = 16.0
+	if output.get_line_count() > 0:
+		line_height = maxf(output.get_line_height(0), line_height)
+	output.get_v_scroll_bar().value += lines * line_height * 3.0
 
 
 func _add_to_history(command:String) -> void:
