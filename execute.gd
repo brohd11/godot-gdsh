@@ -68,19 +68,93 @@ static func _stopped(ctx:Context) -> bool:
 static func _run(node:Dictionary, ctx:Context, aliases:Dictionary):
 	if _stopped(ctx) or node.is_empty(): return
 	# Capture output without creating a new variable scope. Nested commands inherit
-	# the surrounding destination unless their own redirections suppress a stream.
+	# the surrounding destination unless their own redirections route a stream.
 	var previous_out = ctx.stdout
 	var previous_err = ctx.stderr
+	var previous_in = ctx.stdin
 	ctx.stdout = ""
 	ctx.stderr = ""
-	_run_inner(node, ctx, aliases)
+	var redirects = _prepare_redirections(node.get("redirs", []), ctx)
+	# Expansion/open diagnostics always remain visible on the invoking stderr.
+	var setup_errors = ctx.stderr
+	ctx.stderr = ""
+	if redirects.ok:
+		if redirects.stdin_route >= 0:
+			ctx.stdin = redirects.stdin
+		_run_inner(node, ctx, aliases)
+	else:
+		_set_status(ctx, Types.ExitCode.FAIL)
 	var output = ctx.stdout
 	var errors = ctx.stderr
-	for redirect in node.get("redirs", []):
-		if redirect.stdout: output = ""
-		if redirect.stderr: errors = ""
+	ctx.stdin = previous_in
+	var write_errors = ""
+	if redirects.ok and redirects.stdout_route >= 0 and redirects.stdout_route == redirects.stderr_route:
+		write_errors += _write_redirect(redirects.routes[redirects.stdout_route], output + errors)
+		output = ""
+		errors = ""
+	elif redirects.ok:
+		if redirects.stdout_route >= 0:
+			write_errors += _write_redirect(redirects.routes[redirects.stdout_route], output)
+			output = ""
+		if redirects.stderr_route >= 0:
+			write_errors += _write_redirect(redirects.routes[redirects.stderr_route], errors)
+			errors = ""
+	_close_redirections(redirects)
+	if not write_errors.is_empty():
+		_set_status(ctx, Types.ExitCode.FAIL)
 	ctx.stdout = previous_out + output
-	ctx.stderr = previous_err + errors
+	ctx.stderr = previous_err + setup_errors + errors + write_errors
+
+static func _prepare_redirections(redirs:Array, ctx:Context) -> Dictionary:
+	var result = {
+		"ok": true,
+		"routes": [],
+		"stdin_route": -1,
+		"stdout_route": -1,
+		"stderr_route": -1,
+		"stdin": "",
+	}
+	for redirect in redirs:
+		var values = Expansion.word_values(redirect.target, ctx)
+		if values.size() != 1 or str(values[0]).is_empty():
+			ctx.append_error("GDSh redirection: target must expand to exactly one non-empty path")
+			result.ok = false
+			return result
+		var target:String = str(values[0])
+		var discard = target in ["discard", "/dev/null"]
+		var path = target if discard or target.is_absolute_path() else ctx.cwd.path_join(target).simplify_path()
+		var route = {"discard": discard, "path": path, "file": null}
+		if not discard:
+			var mode = FileAccess.READ if redirect.stdin else FileAccess.WRITE
+			if redirect.append and FileAccess.file_exists(path):
+				mode = FileAccess.READ_WRITE
+			route.file = FileAccess.open(path, mode)
+			if route.file == null:
+				ctx.append_error("GDSh redirection: cannot open '%s' (error %s)" % [path, FileAccess.get_open_error()])
+				result.ok = false
+				return result
+			if redirect.append:
+				route.file.seek_end()
+		result.routes.append(route)
+		var route_index = result.routes.size() - 1
+		if redirect.stdin: result.stdin_route = route_index
+		if redirect.stdout: result.stdout_route = route_index
+		if redirect.stderr: result.stderr_route = route_index
+	if result.stdin_route >= 0:
+		var input_route = result.routes[result.stdin_route]
+		if not input_route.discard:
+			result.stdin = input_route.file.get_as_text()
+	return result
+
+static func _write_redirect(route:Dictionary, content:String) -> String:
+	if route.discard or content.is_empty(): return ""
+	if route.file.store_string(content): return ""
+	return "GDSh redirection: cannot write '%s'\n" % route.path
+
+static func _close_redirections(redirects:Dictionary):
+	for route in redirects.routes:
+		if route.file != null:
+			route.file.close()
 
 static func _run_inner(node:Dictionary, ctx:Context, aliases:Dictionary):
 	match node.kind:

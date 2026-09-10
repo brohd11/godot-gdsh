@@ -8,13 +8,13 @@ var tokens:Array
 var pos:int = 0
 var error:Dictionary = {}
 var tolerant:bool = false
-var completion:Dictionary = {"words": [], "redirect": false, "start": 0}
+var completion:Dictionary = {"words": [], "redirect": false, "redirect_op": "", "redirect_word": {}, "start": 0}
 var _depth:int = 0
 
 static func parse(text:String, incomplete:=false) -> Dictionary:
 	var scanned = Lexer.scan(text, incomplete)
 	if not scanned.error.is_empty():
-		return {"tree": {}, "error": scanned.error, "completion": {"words": [], "redirect": false, "start": 0}}
+		return {"tree": {}, "error": scanned.error, "completion": {"words": [], "redirect": false, "redirect_op": "", "redirect_word": {}, "start": 0}}
 	return from_tokens(scanned.tokens, text, incomplete)
 
 static func from_tokens(input:Array, text:String, incomplete:=false) -> Dictionary:
@@ -50,7 +50,7 @@ func _expect(kind:String) -> Dictionary:
 	return _take()
 
 func _new_completion():
-	completion = {"words": [], "redirect": false, "start": _peek().start}
+	completion = {"words": [], "redirect": false, "redirect_op": "", "redirect_word": {}, "start": _peek().start}
 
 func _list(stop:String) -> Dictionary:
 	_depth += 1
@@ -194,7 +194,7 @@ func _loop() -> Dictionary:
 
 func _simple(header:bool) -> Dictionary:
 	var node = {"kind": "simple", "words": [], "redirs": [], "start": _peek().start}
-	completion = {"words": node.words, "redirect": false, "start": node.start}
+	completion = {"words": node.words, "redirect": false, "redirect_op": "", "redirect_word": {}, "start": node.start}
 	while not _peek().kind in ["eof", ";", "\n", "|", "&&", "||", "}", ")"] and error.is_empty():
 		if header and _peek().kind == "{": break
 		if _peek().kind == "redirect":
@@ -236,15 +236,30 @@ func _word() -> Dictionary:
 
 func _redirect() -> Dictionary:
 	var op = _take()
-	completion.redirect = true
-	if not op.raw in [">", "1>", "2>", "&>"]:
+	if not op.raw in ["<", "0<", ">", "1>", ">>", "1>>", "2>", "2>>", "&>", "&>>"]:
 		_fail("Unsupported redirection '%s'" % op.raw, op)
-	var target = _expect("word")
-	var value = Lexer.literal_value(target)
-	if value != "discard" and value != "/dev/null":
-		if not (tolerant and _peek().kind == "eof"):
-			_fail("Only discard and /dev/null are supported redirection targets", target)
-	return {"stdout": op.raw in [">", "1>", "&>"], "stderr": op.raw in ["2>", "&>"]}
+	var target = Lexer.literal("", _peek().start, _peek().end)
+	if _peek().kind == "word":
+		target = _word()
+	else:
+		_expect("word")
+	var nested_completion = false
+	for part in target.get("parts", []):
+		if part.kind == "substitution" and not part.get("closed", true):
+			nested_completion = true
+			break
+	if not nested_completion:
+		completion.redirect = true
+		completion.redirect_op = op.raw
+		completion.redirect_word = target
+	return {
+		"op": op.raw,
+		"target": target,
+		"stdin": op.raw in ["<", "0<"],
+		"stdout": op.raw in [">", "1>", ">>", "1>>", "&>", "&>>"],
+		"stderr": op.raw in ["2>", "2>>", "&>", "&>>"],
+		"append": op.raw in [">>", "1>>", "2>>", "&>>"],
+	}
 
 func _assignment_ahead() -> bool:
 	var i = 1 if _is_word("local") or _is_word("alias") else 0

@@ -23,6 +23,8 @@ var show_flags:bool = true
 var _session:Context
 var _current_command:String
 var _redirect:bool = false
+var _redirect_op:String = ""
+var _redirect_word:Dictionary = {}
 
 func _init(text:String, session:Context, caret:int=-1):
 	raw_text = text
@@ -31,11 +33,9 @@ func _init(text:String, session:Context, caret:int=-1):
 
 func get_completions() -> Dictionary:
 	_parse()
-	var options = Options.new()
 	if _redirect:
-		options.add_option("discard")
-		options.add_option("/dev/null")
-		return options.get_options()
+		return _redirect_completions()
+	var options = Options.new()
 	if token_before_cursor.begins_with("@") and not char_before_cursor in [" ", "\t"]:
 		for name in context.aliases:
 			options.add_option(name, {&"insert": name})
@@ -113,6 +113,8 @@ func _parse():
 	context.raw_text = _current_command
 	char_before_cursor = prefix.right(1)
 	_redirect = current.redirect
+	_redirect_op = current.get("redirect_op", "")
+	_redirect_word = current.get("redirect_word", {})
 	var words:Array = current.words
 	token_before_cursor = words.back().raw if not words.is_empty() else ""
 	word_before_cursor = token_before_cursor
@@ -133,6 +135,39 @@ func _parse():
 	var expanded = Expansion.words(words, context, true)
 	context.unconsumed_tokens = expanded.values
 	context._token_metadata = expanded.metadata
+
+func _redirect_completions() -> Dictionary:
+	var options = Options.new()
+	options.add_option("discard")
+	options.add_option("/dev/null")
+	var target = ""
+	if not _redirect_word.is_empty():
+		target = Expansion.scalar([_redirect_word], context, true)
+	if target in ["discard", "/dev/null"]:
+		return options.get_options()
+	var target_dir = context.cwd
+	var insert_base = ""
+	var leaf = ""
+	if target.ends_with("/"):
+		target_dir = target if target.is_absolute_path() else context.cwd.path_join(target).simplify_path()
+		insert_base = target
+	elif target.contains("/"):
+		insert_base = target.get_base_dir()
+		target_dir = insert_base if insert_base.is_absolute_path() else context.cwd.path_join(insert_base).simplify_path()
+		leaf = target.get_file()
+	else:
+		leaf = target
+	if not DirAccess.dir_exists_absolute(target_dir):
+		return options.get_options()
+	for name in DirAccess.get_directories_at(target_dir):
+		if leaf.is_empty() or name.begins_with(leaf):
+			var value = name if insert_base.is_empty() else insert_base.path_join(name)
+			options.add_option(value, {&"trailing_char": "/"})
+	for name in DirAccess.get_files_at(target_dir):
+		if leaf.is_empty() or name.begins_with(leaf):
+			var value = name if insert_base.is_empty() else insert_base.path_join(name)
+			options.add_option(value)
+	return options.get_options()
 
 func in_arguments() -> bool:
 	return payload_arg_index > -1

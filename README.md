@@ -184,36 +184,49 @@ externally supplied function source, and sourced files are checked when reached.
 Unsupported shell operators are rejected rather than passed as command arguments.
 Quote operator characters when they are intended as data.
 
-## Discard output
+## Redirection
 
-Redirection currently supports the literal target `discard`, with `/dev/null` as
-an equivalent portable spelling. It does not open an OS device or file.
+Redirection targets files relative to `Context.cwd`; `res://`, `user://`, and OS
+absolute paths remain absolute. `>` creates or truncates a file, `>>` appends,
+and `<` replaces stdin with a file's contents. Parent directories must already
+exist.
 
 | Syntax | Effect |
 | --- | --- |
-| `command >discard` or `command 1>discard` | Discard stdout |
-| `command 2>discard` | Discard stderr |
-| `command &>discard` | Discard both streams |
+| `command >file` or `command 1>file` | Overwrite file with stdout |
+| `command >>file` or `command 1>>file` | Append stdout |
+| `command 2>file` / `command 2>>file` | Overwrite / append stderr |
+| `command &>file` / `command &>>file` | Overwrite / append stdout, then stderr |
+| `command <file` or `command 0<file` | Read file into stdin |
 
-Descriptors must touch the operator: `2>` redirects stderr, while `2 >` passes `2`
-as an argument and redirects stdout. Redirections may precede a simple command or
-appear among its arguments; they are removed before flag and argument routing.
-They can also follow an `if`, loop, subshell, or function call:
+The literal targets `discard` and `/dev/null` are portable null streams: output
+is dropped and input is empty. A file named `discard` can be addressed as
+`./discard`.
+
+Targets use normal quote, variable, and command-substitution expansion and must
+produce exactly one non-empty path. Descriptors must touch the operator: `2>`
+redirects stderr, while `2 >` passes `2` as an argument and redirects stdout.
+Redirections may precede a simple command or appear among its arguments; they are
+removed before flag and argument routing. They can also follow an `if`, loop,
+subshell, assignment, or function call:
 
 ```sh
-unknown_command 2>discard || echo recovered
-if true{echo hidden}>discard
+build >user://build.log 2>user://errors.log
+items <user://input.txt | process >>user://results.txt
+if true{echo saved}>"$OUTPUT"
 f(){echo hidden;return 4}; f &>discard
 ```
 
-Discarding output preserves exit status, control flow, and variable scope.
-A command's stdout redirection overrides its pipe destination:
-`echo hidden >discard | sink` gives `sink` empty stdin. Output emitted before or
-after a redirected command is preserved.
+Targets are expanded and opened from left to right before the command runs. The
+last redirection for a stream wins; earlier output targets are still created or
+truncated. An open failure returns `FAIL` without running the command. Redirected
+stdout overrides a pipe destination, and file stdin overrides piped stdin.
+Successful redirection otherwise preserves command status, control flow, and
+variable scope.
 
-File output, append/input redirection, descriptor copying such as `2>&1`, `|&`,
-background execution, and redirection on function *declarations* are unsupported.
-Attach a redirection to a function call instead.
+Descriptor copying such as `2>&1`, `|&`, heredocs, background execution,
+redirection-only statements, and redirection on function *declarations* are
+unsupported. Attach a redirection to a function call instead.
 
 ## Load commands
 
