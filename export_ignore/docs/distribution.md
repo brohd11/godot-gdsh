@@ -8,10 +8,13 @@ String, sorting, and class-enumeration utilities are copied into
 ALib source function for future synchronization. Class enumeration builds a fresh
 dictionary on each call; it does not cache the registry.
 
-The console imports only the GDSh highlighter, palette, and highlighter base from
+The default console highlighter and shared palette are local to GDSh. The
+script-oriented option imports the GDSh highlighter, palette, and highlighter base from
 `addons/addon_lib/brohd/alib_runtime/misc/syntax_highlighters/text/`. A standalone
 distribution must bundle those three scripts and their UID sidecars. No generated
-ALib namespace or external utility scripts are needed.
+ALib namespace or external utility scripts are needed. The ALib script highlighter
+has not yet been ported locally; the public `GDSh.Console.ScriptHighlighter`
+adapter translates GDSh palette colors for it.
 
 ## Exporting
 

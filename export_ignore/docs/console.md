@@ -17,6 +17,75 @@ Up/Down history. Enter submits without adding a line, and pasted newlines become
 spaces. The completion popup sizes itself to its choices and scrolls after it
 reaches half the window height.
 
+## Syntax highlighting
+
+The default `GDSh.Console.Highlighter` colors commands, functions, aliases, and
+known versus unknown variables using the console's current context. It respects
+quotes, escapes, comments, and command substitutions without evaluating input.
+Redirection operators are colored even without spaces around them. Coloring an
+operator such as `<<` does not make it supported by execution.
+
+Global-class highlighting defaults to **off**, since another runtime may not
+support invoking globals. Enable it explicitly when useful:
+
+```gdscript
+var syntax = GDSh.Console.Highlighter.new()
+syntax.highlight_globals = true # Coloring only; does not enable execution.
+syntax.set_palette(GDSh.Console.Palette.new({
+    "scope": Color.SKY_BLUE,
+    "variable": Color.GREEN,
+}))
+console.set_highlighter(syntax) # Also works before add_child(console).
+```
+
+`GDSh.Console.ScriptHighlighter` is the alternative for richer lexical coloring
+of scripts, including strings, numbers, comments, and multiline constructs. It
+uses the existing ALib tokenizer and accepts the same palette:
+
+```gdscript
+var syntax = GDSh.Console.ScriptHighlighter.new()
+syntax.set_palette(GDSh.Console.Palette.new({"string": Color.LIGHT_YELLOW}))
+console.set_highlighter(syntax)
+```
+
+Both are Godot `SyntaxHighlighter` objects and can also be assigned to a separate
+`CodeEdit.syntax_highlighter`. For standalone console highlighting, call
+`syntax.set_context(context)`. `console.set_highlighter()` accepts other Godot
+syntax highlighters too, or `null` to disable highlighting.
+
+The shared `Palette` is a `RefCounted` with hardcoded defaults. Constructor
+overrides accept `Color` values under these property names:
+
+| Slot | Default | Use |
+| --- | --- | --- |
+| `text` | `#cdcfd2` | Plain console text and script text |
+| `scope` | `Color.SKY_BLUE` | Registered console commands, including hidden commands |
+| `variable` | `#96f442` | Known console variables; script variables |
+| `unknown_variable` | `#6d6d6d` | Unknown console variables |
+| `alias` | `#6d6d6d` | Registered console aliases |
+| `global_class` | `#c7ffed` | Registered global class names when enabled |
+| `symbol` | `Color(0.975, 0.703, 0.585)` | Operators and delimiters |
+| `function_def` | `#66e6ff` | Registered console functions; script function declarations |
+| `function` | `#57b3ff` | Script command positions |
+| `comment` | `#7b7f85` | Script comments |
+| `string` | `#ffeda1` | Script strings |
+| `number` | `#a1ffe0` | Script numbers |
+| `control_flow` | `#ff8ccc` | Script control-flow keywords |
+| `string_name` | `#ffc2a6` | Script string names |
+| `bracket` | `#d1cc52` | Script brackets |
+
+Each highlighter starts with an independent palette. Unknown override names and
+non-Color values report errors and are skipped. Reapply `set_palette(palette)`
+after editing palette properties to refresh colors; changing a shared palette
+requires reapplying it to each highlighter using it. Passing `null` restores a
+fresh default palette.
+
+Console execution, command loading, and context replacement refresh highlighting.
+After mutating context dictionaries directly, call
+`syntax.clear_highlighting_cache()`. Changing `highlight_globals` or replacing
+the palette/context also clears cached colors. Console literal text and comments
+stay plain; choose the script highlighter for full lexical coloring.
+
 ## Execution and output
 
 ```gdscript

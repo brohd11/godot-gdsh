@@ -11,12 +11,32 @@ signal history_requested(direction:int)
 
 const _DEBOUNCE_SECONDS = 0.1
 
-var context
+var context:
+	set(value):
+		context = value
+		refresh_highlighting()
 var _timer:Timer
 var _popup:CompletionPopup
 var _completion_request:Completion
 var _normalizing_text:=false
 var _completion_generation:=0
+
+
+func _init() -> void:
+	syntax_highlighter = ConsoleHighlighter.new()
+
+
+func set_highlighter(value:SyntaxHighlighter) -> void:
+	syntax_highlighter = value
+	refresh_highlighting()
+
+
+func refresh_highlighting() -> void:
+	if syntax_highlighter == null:
+		return
+	if syntax_highlighter.has_method("set_context"):
+		syntax_highlighter.set_context(context)
+	syntax_highlighter.clear_highlighting_cache()
 
 
 func _ready() -> void:
@@ -34,7 +54,6 @@ func _ready() -> void:
 	for style in ["normal", "read_only", "focus"]:
 		add_theme_stylebox_override(style, StyleBoxEmpty.new())
 
-	syntax_highlighter = ConsoleHighlighter.new()
 	text_changed.connect(_on_text_changed)
 	gui_input.connect(_on_gui_input)
 	focus_exited.connect(_hide_completion)

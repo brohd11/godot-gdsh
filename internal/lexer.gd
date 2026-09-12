@@ -145,7 +145,7 @@ func _dollar(parts:Array, quoted:bool):
 	if pos == name_start:
 		_text(parts, "$", quoted)
 	else:
-		parts.append({"kind": "variable", "value": source.substr(start, pos - start), "quoted": quoted})
+		parts.append({"kind": "variable", "value": source.substr(start, pos - start), "quoted": quoted, "start": start, "end": pos})
 
 static func _identifier_char(ch:String) -> bool:
 	return ch == "_" or ch >= "a" and ch <= "z" or ch >= "A" and ch <= "Z" or ch >= "0" and ch <= "9"

@@ -5,6 +5,9 @@ const Context = preload("res://addons/addon_lib/gdsh/context.gd")
 const Execute = preload("res://addons/addon_lib/gdsh/execute.gd")
 const ConsoleInput = preload("res://addons/addon_lib/gdsh/console_input.gd")
 const SourceFont = preload("res://addons/addon_lib/gdsh/internal/source_font.tres")
+const Highlighter = preload("res://addons/addon_lib/gdsh/internal/console_highlighter.gd")
+const ScriptHighlighter = preload("res://addons/addon_lib/gdsh/internal/script_highlighter.gd")
+const Palette = preload("res://addons/addon_lib/gdsh/internal/palette.gd")
 
 signal command_submitted(text:String)
 signal command_finished(text:String, result:Context)
@@ -96,6 +99,10 @@ func get_text_edit() -> CodeEdit:
 	return input
 
 
+func set_highlighter(syntax:SyntaxHighlighter) -> void:
+	input.set_highlighter(syntax)
+
+
 func get_prompt_label() -> RichTextLabel:
 	return prompt_label
 
@@ -123,7 +130,9 @@ func remove_font_override() -> void:
 
 
 func load(path:String, hidden:=false) -> Dictionary:
-	return context.load(path, hidden)
+	var loaded = context.load(path, hidden)
+	input.refresh_highlighting()
+	return loaded
 
 
 func execute(text:String) -> Context:
@@ -141,6 +150,7 @@ func execute(text:String) -> Context:
 	context.exit_code = result.exit_code
 	# `exit` stops the submitted child and its descendants, not the console session.
 	context.exit_requested = false
+	input.refresh_highlighting()
 
 	_append_result(result)
 	update_prompt()
