@@ -1,6 +1,6 @@
 # Distribution and validation
 
-GDSh is a runtime copy of Editor Console's execution engine. It does not include
+GDSh is the standalone runtime execution engine used by Editor Console. It does not include
 Editor Console, its commands, editor-only UI, OS mode, or the `os` command.
 
 String, sorting, and class-enumeration utilities are copied into

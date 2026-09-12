@@ -150,6 +150,11 @@ func _consume_token(ctx:Context):
 	return tok
 
 func execute(ctx:Context):
+	# Raw commands only parse at command position; routed tokens would lose their source.
+	if has_method("execute_raw") and get_self_command_data().get(&"raw", false):
+		ctx.append_error("%s takes raw arguments; call it by name at command position" % get_command_name())
+		ctx.exit_code = ExitCode.ERR
+		return ExitCode.ERR
 	var selected = _route(ctx)
 	if PRINT_DEBUG:
 		print("CommandBase execute - selected::", selected)
@@ -227,7 +232,6 @@ func _get_completion_std_w_context(completion:Completion, commands:=true, flags:
 			options.merge(get_commands(true))
 		if _do_flag and flags:
 			options.merge(get_flags(true))
-
 
 	return options.get_options()
 
@@ -428,6 +432,8 @@ func _get_flag_type_completions(completion:Completion):
 
 static func _completion_rel_path(ctx:Context, current_rel_path:String):
 	var target_dir = ctx.cwd
+	# Keep the user's prefix for insertion; only resolve it for directory lookup.
+	var insert_base = current_rel_path.left(current_rel_path.rfind("/") + 1)
 	var options = Options.new()
 	if current_rel_path != "":
 		target_dir = _complete_path(current_rel_path, ctx.cwd)
@@ -444,6 +450,7 @@ static func _completion_rel_path(ctx:Context, current_rel_path:String):
 	dirs.push_front("..")
 	for dir in dirs:
 		options.add_option(dir, {
+			&"insert": insert_base + dir,
 			&"trailing_char": "/"
 		})
 

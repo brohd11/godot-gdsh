@@ -6,7 +6,10 @@ const Context = preload("res://addons/addon_lib/gdsh/context.gd")
 const Lexer = preload("res://addons/addon_lib/gdsh/internal/lexer.gd")
 const Utils = preload("res://addons/addon_lib/gdsh/internal/utils.gd")
 const Palette = preload("res://addons/addon_lib/gdsh/internal/palette.gd")
+const Expansion = preload("res://addons/addon_lib/gdsh/internal/expansion.gd")
 const _COMPARISONS = ["[", "]", "==", "!="]
+const _PREVIEW_LENGTH = 20
+const _UNDEFINED_COLOR = Color("ff6b6b")
 
 var palette := Palette.new()
 var context:Context
@@ -68,6 +71,55 @@ func _build_colors(source:String) -> void:
 	var globals = Utils.get_all_global_class_paths() if highlight_globals else {}
 	_color_tokens(Lexer.scan(source, true).tokens, globals)
 	_valid = true
+
+
+## BBCode for a submitted line, painted with the input colors. With show_values,
+## variables and aliases are prefixed by a grey [value] preview. Previews read
+## values only; substitutions are never evaluated and raw arguments get none.
+func to_bbcode(source:String, show_values:=false) -> String:
+	_build_colors(source)
+	_valid = false # The color cache belongs to the input text, not this line.
+	var previews = {}
+	if show_values and context != null:
+		var raw_names:Array[String] = context.raw_commands
+		_collect_previews(Lexer.scan(source, true, raw_names).tokens, previews)
+	var out = ""
+	var run_start = 0
+	for index in source.length() + 1:
+		var at_end = index == source.length()
+		if index > run_start and (at_end or previews.has(index) or _colors[index] != _colors[run_start]):
+			out += _color_run(source.substr(run_start, index - run_start), _colors[run_start])
+			run_start = index
+		if not at_end and previews.has(index):
+			out += previews[index]
+	return out
+
+
+func _collect_previews(tokens:Array, previews:Dictionary) -> void:
+	for token in tokens:
+		if token.kind != "word":
+			continue
+		if not token.quoted and context.aliases.has(token.raw):
+			previews[token.start] = _preview(str(context.aliases[token.raw]).trim_prefix("@literal").strip_edges())
+		for part in token.parts:
+			if part.kind == "variable":
+				previews[part.start] = _preview(Expansion.variable(part.value, context, true)) \
+						if _known_variable(part.value) else _preview("undef", true)
+			elif part.kind == "substitution":
+				_collect_previews(part.tokens, previews)
+
+
+func _preview(value:String, undefined:=false) -> String:
+	value = value.replace("\n", " ")
+	if value.length() > _PREVIEW_LENGTH:
+		value = value.left(_PREVIEW_LENGTH) + "…"
+	var bracket = palette.unknown_variable.to_html(false)
+	var color = _UNDEFINED_COLOR if undefined else palette.text
+	return "[color=%s][lb][/color]%s[color=%s]][/color]" % [bracket, _color_run(value, color), bracket]
+
+
+static func _color_run(text:String, color:Color) -> String:
+	return "[color=%s]%s[/color]" % [color.to_html(false), text.replace("[", "[lb]")]
 
 
 func _paint(start:int, end:int, color:Color) -> void:

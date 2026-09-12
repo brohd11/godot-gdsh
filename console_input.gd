@@ -10,6 +10,10 @@ signal submit_requested(text:String)
 signal history_requested(direction:int)
 
 const _DEBOUNCE_SECONDS = 0.1
+## Ctrl+Backspace stops at these, so path segments and flag values delete separately.
+const _WORD_DELIMITERS = [" ", ".", "/", "'", '"', "="]
+
+var completion_factory:Callable
 
 var context:
 	set(value):
@@ -45,6 +49,7 @@ func _ready() -> void:
 	auto_brace_completion_enabled = true
 	code_completion_enabled = false
 	wrap_mode = TextEdit.LINE_WRAPPING_NONE
+	
 	scroll_fit_content_height = true
 	minimap_draw = false
 	gutters_draw_line_numbers = false
@@ -82,12 +87,14 @@ func request_completion(force:=true) -> void:
 	if context == null or text.is_empty() and not force:
 		_hide_completion()
 		return
-	_completion_request = Completion.new(text, context, get_caret_column())
+	_completion_request = completion_factory.call(text, context, get_caret_column()) if completion_factory.is_valid() \
+			else Completion.new(text, context, get_caret_column())
 	var choices = _completion_request.get_completions().duplicate(true)
 	choices.erase(Options.Keys.COMMAND_META)
 	var needle = "" if _completion_request.char_before_cursor in ["", " ", "\t", "\n"] \
 			else _completion_request.token_before_cursor
 	_filter_choices(choices, needle)
+	_clean_up_separators(choices)
 	if choices.is_empty():
 		_hide_completion()
 		return
@@ -104,9 +111,26 @@ func _filter_choices(choices:Dictionary, needle:String) -> void:
 	if needle.length() < 2:
 		return
 	for choice in choices.keys():
-		if choice == Options.Keys.COMMAND_META or needle.is_subsequence_ofn(str(choice)):
+		if choice == Options.Keys.COMMAND_META or Options.Keys.get_seperator(str(choice)) != null:
+			continue
+		var metadata:Dictionary = choices[choice].get(Options.Keys.METADATA, {})
+		if needle.is_subsequence_ofn(str(choice)) \
+				or needle.is_subsequence_ofn(str(metadata.get(Options.Keys.INSERT, choice))):
 			continue
 		choices.erase(choice)
+
+
+func _clean_up_separators(choices:Dictionary) -> void:
+	var keys = choices.keys()
+	keys.reverse()
+	var has_choice := false
+	for choice in keys:
+		if Options.Keys.get_seperator(str(choice)) != null:
+			if not has_choice:
+				choices.erase(choice)
+			has_choice = false
+		else:
+			has_choice = true
 
 
 func _accept_completion(choice:String, data:Dictionary) -> void:
@@ -132,10 +156,19 @@ func _shortcut_input(event:InputEvent) -> void:
 
 
 func _on_gui_input(event:InputEvent) -> void:
-	if not event is InputEventKey or not event.pressed or event.echo:
+	if not event is InputEventKey or not event.pressed:
+		return
+	if event.as_text_keycode() == "Ctrl+Backspace": # Repeats while held, like native deletion.
+		delete_word_before_caret()
+		accept_event()
+		return
+	if event.echo:
 		return
 	var popup_visible = _popup != null and _popup.visible
 	match event.keycode:
+		KEY_LEFT, KEY_RIGHT:
+			if popup_visible: # The caret still moves.
+				_hide_completion()
 		KEY_ENTER, KEY_KP_ENTER:
 			_hide_completion()
 			submit_requested.emit(text)
@@ -162,6 +195,22 @@ func _on_gui_input(event:InputEvent) -> void:
 			if popup_visible:
 				_hide_completion()
 				accept_event()
+
+
+func delete_word_before_caret() -> void:
+	var caret = get_caret_column()
+	var before = text.left(caret).strip_edges(false, true)
+	# A trailing delimiter belongs to the word being deleted.
+	if not before.is_empty() and before.right(1) in _WORD_DELIMITERS:
+		before = before.left(-1)
+	var start = 0
+	for delimiter in _WORD_DELIMITERS:
+		start = maxi(start, before.rfind(delimiter) + 1)
+	begin_complex_operation()
+	text = text.erase(start, caret - start)
+	set_caret_column(start)
+	end_complex_operation()
+	_on_text_changed()
 
 
 func _hide_completion() -> void:

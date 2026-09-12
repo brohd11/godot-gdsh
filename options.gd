@@ -36,7 +36,7 @@ func remove_option(option_name:String):
 
 #! keys name:String help:String positional_count:int trailing_char:String icon:Variant
 #! keys get_command:Callable priority:int metadata:Dictionary arg_count:int insert:String
-#! keys flag_completion:Dictionary allow_positional_paths:bool
+#! keys flag_completion:Dictionary allow_positional_paths:bool raw:bool
 ## Nested Dict: flag_completion - type, dir, ext
 func add_option(option_name:String, params:={}):
 	_option_dict[option_name] = get_single_option_dict(option_name, params)
@@ -61,6 +61,10 @@ static func process_option_dict(params:={}) -> Dictionary:
 	if params.has(&"icon"):
 		data.icon = params.icon
 
+	# Raw commands receive their argument source unparsed; see Context.collect_raw_commands.
+	if params.get(&"raw", false):
+		data.raw = true
+
 	data[Keys.METADATA] = params.get(&"metadata", {})
 
 	if params.has(&"insert"):
@@ -83,7 +87,7 @@ static func add_command_script_to_dict(command, dict:Dictionary):
 	var data = command.get_self_command_data()
 	if not data.has(&"get_command"):
 		data[&"get_command"] = func():
-			return command.new()
+			return load("res://addons/addon_lib/gdsh/load.gd").fresh(command).new()
 	dict[command.get_command_name()] = data
 
 

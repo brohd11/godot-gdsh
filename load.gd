@@ -4,10 +4,26 @@ extends RefCounted
 const Paths = preload("res://addons/addon_lib/gdsh/internal/paths.gd")
 const Types = preload("res://addons/addon_lib/gdsh/internal/types.gd")
 const CommandBase = preload("res://addons/addon_lib/gdsh/command_base.gd")
-const BUILTIN_NAMES = [
-	"break", "continue", "return", "exit", "shift", "true", "false", "comparison",
-	"expr", "echo", "source", "cd", "help", "function", "run_script",
+# Explicit dependencies keep builtin scripts reachable in relocated plugin exports.
+const BUILTIN_SCRIPTS = [
+	preload("res://addons/addon_lib/gdsh/builtins/builtins.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/break/break.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/continue/continue.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/return/return.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/exit/exit.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/shift/shift.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/true/true.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/false/false.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/comparison/comparison.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/expr/expr.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/echo/echo.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/source/source.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/cd/cd.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/help/help.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/function/function.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/run_script/run_script.gd"),
 ]
+
 
 ## Returns null and reports an error for an invalid command.
 static func load_command(path:String) -> GDScript:
@@ -15,7 +31,7 @@ static func load_command(path:String) -> GDScript:
 		push_error("GDSh.Load: command not found: " + path)
 		return null
 	var script = ResourceLoader.load(path, "GDScript") as GDScript
-	if script == null or not script.can_instantiate():
+	if script == null: # or not script.can_instantiate(): # GDScript always fails can_instantiate for some reason
 		push_error("GDSh.Load: cannot instantiate command: " + path)
 		return null
 	var base = script.get_base_script()
@@ -29,6 +45,13 @@ static func load_command(path:String) -> GDScript:
 		push_error("GDSh.Load: command has no valid name: " + path)
 		return null
 	return script
+
+## Commands outside res:// (user command directories) reload on use, so edits apply without a restart.
+static func fresh(script:GDScript) -> GDScript:
+	if script == null or script.resource_path.is_empty() or script.resource_path.begins_with("res://"):
+		return script
+	var reloaded = ResourceLoader.load(script.resource_path, "GDScript", ResourceLoader.CACHE_MODE_IGNORE_DEEP) as GDScript
+	return reloaded if reloaded != null else script
 
 ## Loads loose .gd files and name/name.gd entries, without flattening child commands.
 ## child_directories_only is used by CommandBase to discover its subcommands.
@@ -58,12 +81,6 @@ static func load_directory(path:String, child_directories_only:=false) -> Dictio
 
 static func load_builtins() -> Dictionary:
 	var scopes = {}
-	var parent = load_command("res://addons/addon_lib/gdsh/builtins/builtins.gd")
-	if parent != null:
-		scopes[parent.get_command_name()] = {Types.ScopeDataKeys.SCRIPT: parent}
-	for name in BUILTIN_NAMES:
-		var path = "res://addons/addon_lib/gdsh/builtins/%s/%s.gd" % [name, name]
-		var script = load_command(path)
-		if script != null:
-			scopes[script.get_command_name()] = {Types.ScopeDataKeys.SCRIPT: script}
+	for script in BUILTIN_SCRIPTS:
+		scopes[script.get_command_name()] = {Types.ScopeDataKeys.SCRIPT: script}
 	return scopes

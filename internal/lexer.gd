@@ -6,17 +6,22 @@ var pos:int = 0
 var tolerant:bool = false
 var error:Dictionary = {}
 var _nesting:int = 0
+var raw_commands:Array[String] = []
 
-static func scan(text:String, incomplete:=false) -> Dictionary:
+static func scan(text:String, incomplete:=false, raw_names:Array[String]=[]) -> Dictionary:
 	var lexer = new()
 	lexer.source = text
 	lexer.tolerant = incomplete
+	lexer.raw_commands = raw_names
 	var tokens = lexer._scan(false)
 	return {"tokens": tokens, "error": lexer.error, "source": text}
 
 func _scan(in_substitution:bool) -> Array:
 	var tokens:Array = []
 	var parens = 0
+	var command_start = true
+	var raw_active = false
+	var redirect_target = false
 	while pos < source.length() and error.is_empty():
 		var ch = source[pos]
 		if ch in [" ", "\t", "\r"]:
@@ -50,11 +55,86 @@ func _scan(in_substitution:bool) -> Array:
 			if op == "(": parens += 1
 			if op == ")": parens -= 1
 			tokens.append(_token(kind, start, pos))
+			if kind == "redirect":
+				redirect_target = true
+			else:
+				command_start = kind in [";", "\n", "|", "&&", "||", "{", "("]
+				raw_active = false
+				redirect_target = false
 		else:
 			pos = start
-			tokens.append(_word())
+			if raw_active and not redirect_target:
+				tokens.append(_raw_arguments())
+				continue
+			var word = _word()
+			tokens.append(word)
+			if redirect_target:
+				redirect_target = false
+				continue
+			if command_start and not word.quoted and word.raw in raw_commands:
+				raw_active = true
+				tokens.append(_raw_arguments())
+			command_start = command_start and word.raw in ["if", "elif", "while"]
 	tokens.append(_token("eof", pos, pos))
 	return tokens
+
+## A host raw command owns its arguments, but not outer GDSh operators.
+## Quotes and balanced groups are opaque to the GDSh word grammar.
+func _raw_arguments() -> Dictionary:
+	while pos < source.length() and source[pos] in [" ", "\t"]: pos += 1
+	var start = pos
+	_raw_span("")
+	return _token("raw_args", start, pos)
+
+
+## Scan raw source through `close`. An empty `close` is the argument list itself,
+## which instead stops before an outer GDSh operator.
+func _raw_span(close:String) -> void:
+	var start = pos
+	_nesting += 1
+	if _nesting > 128:
+		_fail("Raw argument nesting limit exceeded", start)
+		return
+	var quote = ""
+	while pos < source.length() and error.is_empty():
+		var ch = source[pos]
+		if ch == "\\" and quote != "'":
+			pos = mini(pos + 2, source.length())
+			continue
+		var substitution = quote != "'" and ch == "$" and source.substr(pos + 1, 1) in ["(", "{"]
+		var group = quote.is_empty() and (ch == "(" or ch == "{" and not close.is_empty())
+		if substitution or group:
+			if substitution: pos += 1
+			var opener = source[pos]
+			pos += 1
+			_raw_span(")" if opener == "(" else "}")
+			continue
+		if not quote.is_empty():
+			if ch == quote: quote = ""
+		elif ch in ["'", '"']:
+			quote = ch
+		elif ch == close:
+			pos += 1
+			_nesting -= 1
+			return
+		elif close.is_empty() and _raw_stop(ch, start):
+			break
+		pos += 1
+	_nesting -= 1
+	if tolerant or not error.is_empty(): return
+	if not close.is_empty(): _fail("Unclosed raw argument group", start)
+	elif not quote.is_empty(): _fail("Unclosed raw command argument", start)
+
+
+func _raw_stop(ch:String, start:int) -> bool:
+	if ch in [";", "\n", "|", "&", ">", "<", "{", "}", ")"]: return true
+	if pos != start and not source[pos - 1] in [" ", "\t"]: return false
+	if ch == "#": return true
+	if not ch.is_valid_int(): return false
+	var end = pos
+	while end < source.length() and source[end].is_valid_int(): end += 1
+	return source.substr(end, 1) in [">", "<"]
+
 
 func _token(kind:String, start:int, end:int) -> Dictionary:
 	return {"kind": kind, "start": start, "end": end, "raw": source.substr(start, end - start)}

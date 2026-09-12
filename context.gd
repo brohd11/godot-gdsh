@@ -20,6 +20,11 @@ var unconsumed_tokens:= []
 var _token_metadata:Array = []
 var _function_cache:Dictionary = {}
 var data := {}
+## Optional host integration. Hooks must not execute commands during completion.
+var scope_resolver:Callable
+var raw_commands:Array[String] = []
+## Host services/bindings, separate from per-command control-flow data.
+var host_data:Dictionary = {}
 
 var parent_ctx:Context
 
@@ -74,13 +79,31 @@ func load(path:String, hidden:=false) -> Dictionary:
 
 
 func has_scope(name:String) -> bool:
-	return scopes.has(name) or scopes_hidden.has(name)
+	return get_scope(name) != null
 
 
 func get_scope(name:String):
 	if scopes.has(name):
 		return scopes[name]
-	return scopes_hidden.get(name)
+	if scopes_hidden.has(name):
+		return scopes_hidden[name]
+	if scope_resolver.is_valid():
+		return scope_resolver.call(name, self)
+	return null
+
+
+## Set raw_commands to the registered names whose command data declares `raw`.
+## Reads static command data only; no command is instantiated.
+func collect_raw_commands() -> void:
+	var names:Array[String] = []
+	for registry in [scopes_hidden, scopes]:
+		for name in registry:
+			var command = registry[name].get(Types.ScopeDataKeys.SCRIPT)
+			if command == null or not (command is GDScript or command.has_method("get_self_command_data")):
+				continue
+			if command.get_self_command_data().get(&"raw", false) and not name in names:
+				names.append(name)
+	raw_commands = names
 
 func set_positional_args(path_or_name:String, args:Array):
 	variables["$0"] = path_or_name
@@ -157,6 +180,9 @@ static func new_ctx(text:String, parent:Context=null, sub_shell:=false):
 		if not sub_shell: # so that function definitions do not populate up
 			ctx.parent_ctx = parent
 
+		ctx.scope_resolver = parent.scope_resolver
+		ctx.raw_commands = parent.raw_commands # Host configuration, shared rather than copied.
+		ctx.host_data = parent.host_data.duplicate()
 		ctx.cwd = parent.cwd
 		ctx.execute = parent.execute
 

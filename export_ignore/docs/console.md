@@ -14,8 +14,14 @@ var transcript = console.create_output() # Optional and idempotent.
 
 The input provides syntax highlighting, delayed completion, Tab completion, and
 Up/Down history. Enter submits without adding a line, and pasted newlines become
-spaces. The completion popup sizes itself to its choices and scrolls after it
-reaches half the window height.
+spaces. Ctrl+Backspace deletes back to the previous space, `.`, `/`, quote, or
+`=`; Left/Right close the completion popup. The completion popup sizes itself to
+its choices and scrolls after it reaches half the window height.
+
+The transcript echoes each command with the input highlighter's colors through
+`console.format_command(text)`, which uses the highlighter's `to_bbcode` when it
+has one. Set `console.echo_values = true` to prefix variables and aliases with a
+grey `[value]` preview. Previews read values only and never run substitutions.
 
 ## Syntax highlighting
 
@@ -138,3 +144,22 @@ these events do not reach gameplay handlers in the unhandled-input stages.
 
 Pass an existing context to `GDSh.Console.new(context)` or replace it with
 `set_context(context)`. OS mode is not part of this component.
+
+## Custom submission and completion
+
+Hosts may assign `console.execution_handler: Callable(text, result_context)` to
+replace execution while retaining the normal history, signals, prompt updates,
+transcript, and status lifecycle. The handler writes the supplied child context's
+streams and status; leaving the callable empty uses `GDSh.Execute`.
+
+`console.input.completion_factory: Callable(text, context, caret)` optionally
+returns a `GDSh.Completion` instance or subclass. The existing popup, filtering,
+replacement, debounce, and keyboard behavior are retained. Empty means the
+standard GDSh completion request. Custom requests must not execute input.
+
+Completion filtering matches either the display label or the option's `insert`
+text using case-insensitive subsequence matching. An `insert` value replaces the
+whole token before the caret by default, so path providers include the typed
+directory prefix in it while displaying only the leaf name. Directory choices
+append `/` to allow continued completion. Separators stay with surviving groups;
+empty groups and trailing separators are removed after filtering.

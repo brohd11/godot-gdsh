@@ -22,6 +22,8 @@ var show_flags:bool = true
 
 var _session:Context
 var _current_command:String
+var raw_arguments:String
+var raw_argument_start:int = -1
 var _redirect:bool = false
 var _redirect_op:String = ""
 var _redirect_word:Dictionary = {}
@@ -36,11 +38,12 @@ func get_completions() -> Dictionary:
 	if _redirect:
 		return _redirect_completions()
 	var options = Options.new()
-	if token_before_cursor.begins_with("@") and not char_before_cursor in [" ", "\t"]:
+	if raw_argument_start < 0 and token_before_cursor.begins_with("@") and not char_before_cursor in [" ", "\t"]:
 		for name in context.aliases:
-			options.add_option(name, {&"insert": name})
+			var source = str(context.aliases[name]).trim_prefix("@literal").strip_edges()
+			options.add_option("%s = [%s]" % [name, source], {&"insert": name})
 		return options.get_options()
-	if token_before_cursor.begins_with("$") and not token_before_cursor.begins_with("$(") and not char_before_cursor in [" ", "\t"]:
+	if raw_argument_start < 0 and token_before_cursor.begins_with("$") and not token_before_cursor.begins_with("$(") and not char_before_cursor in [" ", "\t"]:
 		for name in context.variables:
 			options.add_option(name)
 		return options.get_options()
@@ -53,16 +56,20 @@ func get_completions() -> Dictionary:
 				if not name.begins_with("__"):
 					options.add_option(name)
 			for name in context.functions:
-				options.add_option(name, {&"insert": name})
+				options.add_option(name + "[func]", {&"insert": name})
 		return options.get_options()
 	if context.functions.has(first_word):
 		return {}
 	var command = scope.get(Types.ScopeDataKeys.SCRIPT)
 	if command is GDScript:
-		command = command.new()
+		command = load("res://addons/addon_lib/gdsh/load.gd").fresh(command).new()
 	if not is_instance_valid(command) or not command.has_method("complete"):
 		return {}
-	var result = command.complete(self)
+	var result
+	if raw_argument_start >= 0:
+		result = command.complete_raw(raw_arguments, self) if command.has_method("complete_raw") else {}
+	else:
+		result = command.complete(self)
 	if result == null:
 		return {}
 	if result is Object and result.has_method("get_options"):
@@ -74,7 +81,8 @@ func get_completions() -> Dictionary:
 	var meta = result.get(Options.Keys.COMMAND_META, {})
 	if payload_arg_index > -1:
 		options.remove_option(Options.ARG_DELIMITER)
-		if meta.get(Options.Keys.SHOW_VARIABLES, false):
+		if meta.get(Options.Keys.SHOW_VARIABLES, false) and not context.variables.is_empty():
+			options.add_separator("Variables")
 			for name in context.variables:
 				options.add_option(name)
 	var output = options.get_options()
@@ -91,6 +99,9 @@ func get_completions() -> Dictionary:
 func _parse():
 	context = Context.new("", false)
 	if _session != null:
+		context.scope_resolver = _session.scope_resolver
+		context.raw_commands = _session.raw_commands
+		context.host_data = _session.host_data.duplicate()
 		context.cwd = _session.cwd
 		context.variables = _session.variables.duplicate(true)
 		context.aliases = _session.aliases.duplicate(true)
@@ -107,7 +118,7 @@ func _parse():
 	payload_args = []
 	payload_arg_index = -1
 	var prefix = raw_text.left(clampi(caret_col, 0, raw_text.length()))
-	var parsed = Parser.parse(prefix, true)
+	var parsed = Parser.parse(prefix, true, context.raw_commands)
 	var current = parsed.completion
 	_current_command = prefix.substr(current.start).strip_edges(true, false)
 	context.raw_text = _current_command
@@ -115,6 +126,8 @@ func _parse():
 	_redirect = current.redirect
 	_redirect_op = current.get("redirect_op", "")
 	_redirect_word = current.get("redirect_word", {})
+	raw_arguments = current.get("raw_args", "")
+	raw_argument_start = current.get("raw_start", -1)
 	var words:Array = current.words
 	token_before_cursor = words.back().raw if not words.is_empty() else ""
 	word_before_cursor = token_before_cursor
@@ -131,10 +144,19 @@ func _parse():
 			else:
 				fragments.append(word.raw)
 		if not changed: break
-		words = Parser.parse(" ".join(fragments), true).completion.words
+		var alias_text = " ".join(fragments)
+		if raw_argument_start >= 0: alias_text += " " + raw_arguments
+		var alias_completion = Parser.parse(alias_text, true, context.raw_commands).completion
+		words = alias_completion.words
+		raw_arguments = alias_completion.get("raw_args", "")
+		raw_argument_start = alias_completion.get("raw_start", -1)
 	var expanded = Expansion.words(words, context, true)
 	context.unconsumed_tokens = expanded.values
 	context._token_metadata = expanded.metadata
+
+	if raw_argument_start >= 0:
+		token_before_cursor = raw_arguments.get_slice(" ", raw_arguments.get_slice_count(" ") - 1)
+		word_before_cursor = token_before_cursor
 
 func _redirect_completions() -> Dictionary:
 	var options = Options.new()

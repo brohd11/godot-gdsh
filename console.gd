@@ -4,6 +4,7 @@ extends VBoxContainer
 const Context = preload("res://addons/addon_lib/gdsh/context.gd")
 const Execute = preload("res://addons/addon_lib/gdsh/execute.gd")
 const ConsoleInput = preload("res://addons/addon_lib/gdsh/console_input.gd")
+#! dependency "res://addons/addon_lib/gdsh/internal/source_font.LICENSE.txt" current
 const SourceFont = preload("res://addons/addon_lib/gdsh/internal/source_font.tres")
 const Highlighter = preload("res://addons/addon_lib/gdsh/internal/console_highlighter.gd")
 const ScriptHighlighter = preload("res://addons/addon_lib/gdsh/internal/script_highlighter.gd")
@@ -12,6 +13,9 @@ const Palette = preload("res://addons/addon_lib/gdsh/internal/palette.gd")
 signal command_submitted(text:String)
 signal command_finished(text:String, result:Context)
 
+var execution_handler:Callable
+## Echoed commands preview variable and alias values, as `[value]$name`.
+var echo_values:=false
 var context:Context
 var last_result:Context
 var prompt_formatter:Callable:
@@ -144,7 +148,10 @@ func execute(text:String) -> Context:
 	_append_command(command)
 
 	var result = Context.new_ctx("Console submission", context)
-	Execute.execute_command_multiline(command, result)
+	if execution_handler.is_valid():
+		execution_handler.call(command, result)
+	else:
+		Execute.execute_command_multiline(command, result)
 	last_result = result
 	context.last_status = result.exit_code
 	context.exit_code = result.exit_code
@@ -287,11 +294,18 @@ func _set_input_text(value:String) -> void:
 	input.set_caret_column(value.length())
 
 
+## Transcript BBCode for a submitted command, colored by the input highlighter when it supports it.
+func format_command(command:String) -> String:
+	var syntax = input.syntax_highlighter
+	if syntax != null and syntax.has_method("to_bbcode"):
+		return syntax.to_bbcode(command, echo_values)
+	return command.replace("[", "[lb]")
+
+
 func _append_command(command:String) -> void:
 	if output == null:
 		return
-	output.append_text(prompt_label.text)
-	output.add_text(" " + command + "\n")
+	output.append_text(prompt_label.text + " " + format_command(command) + "\n")
 
 
 func _append_result(result:Context) -> void:

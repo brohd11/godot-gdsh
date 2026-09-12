@@ -93,3 +93,41 @@ dictionary or `GDSh.Options` object.
 
 Exports must include dynamically loaded `.gd` command files. See
 [Distribution and validation](distribution.md).
+
+## Host integrations
+
+`Context.scope_resolver` is an optional `Callable(name, context)` returning a
+scope dictionary (`{"script": command_script_or_object}`) or `null`. Registered
+scopes take precedence. Execution and completion use the same resolver; it must
+be free of command execution and session mutations. Child and subshell contexts
+inherit the resolver.
+
+A host can opt command names into raw arguments through
+`context.raw_commands: Array[String]`, or call `context.collect_raw_commands()`
+to collect registered commands whose data declares `&"raw": true` (static data
+only; nothing is instantiated). Child contexts share the list. These names
+reserve their argument syntax at command positions; a raw command reached
+through subcommand routing reports an error instead of running. Their command
+objects implement:
+
+```gdscript
+func execute_raw(source:String, ctx:Context) -> int:
+    # Interpret source here, only when the command is selected for execution.
+    return ExitCode.OK
+
+func complete_raw(source:String, completion:Completion) -> Dictionary:
+    return {} # Never invoke execute_raw from completion.
+```
+
+The raw source preserves quotes and balanced groups; GDSh does not expand its
+arguments or parse substitution bodies. Outer GDSh pipelines, conditionals,
+statement boundaries, and redirections retain their normal meaning. Raw handlers
+append output/error to their context and return an integer status. Hooks remain
+available inside functions, sourced scripts, aliases, and command substitutions.
+With no raw names configured, the language is unchanged.
+
+`Context.host_data` carries host services or bindings separately from `data`'s
+per-command/control-flow state. Its dictionary is shallow-copied into child,
+subshell, and completion contexts. Prefer weak references for UI bindings to
+avoid retaining disposed controls. Hosts own the lifetime of shared objects.
+No OS interpretation or editor-class resolution is built into these hooks.

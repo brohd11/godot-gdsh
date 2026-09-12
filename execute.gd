@@ -13,7 +13,7 @@ const _LOOP_CONTINUE_KEY = "__loop_continue__"
 static func execute_command_multiline(text:String, ctx:Context=null):
 	if ctx == null: ctx = Context.new()
 	if ctx.exit_requested: return ctx
-	var parsed = Parser.parse(text)
+	var parsed = Parser.parse(text, false, ctx.raw_commands)
 	if not parsed.error.is_empty():
 		_parse_error(ctx, parsed.error)
 		return ctx
@@ -275,11 +275,27 @@ static func _simple(node:Dictionary, ctx:Context, aliases:Dictionary):
 		else:
 			source_words.append(word.raw)
 	if changed:
-		var parsed = Parser.parse(" ".join(source_words))
+		var alias_source = " ".join(source_words)
+		if node.has("raw_args"): alias_source += " " + node.raw_args
+		var parsed = Parser.parse(alias_source, false, ctx.raw_commands)
 		if not parsed.error.is_empty():
 			_parse_error(ctx, parsed.error)
 		else:
 			_run(parsed.tree, ctx, next_aliases)
+		return
+	if node.has("raw_args"):
+		var command = Context.new_ctx("Raw command", ctx)
+		var scope = ctx.get_scope(node.words[0].raw)
+		var script = _instance(scope.get(Types.ScopeDataKeys.SCRIPT) if scope != null else null)
+		if is_instance_valid(script) and script.has_method("execute_raw"):
+			var status = script.execute_raw(node.raw_args, command)
+			if status is int: command.exit_code = status
+		else:
+			command.append_error("Raw command has no execute_raw handler: " + node.words[0].raw)
+			command.exit_code = Types.ExitCode.ERR
+		ctx.append_output(command.stdout)
+		ctx.append_error(command.stderr)
+		_set_status(ctx, command.exit_code)
 		return
 	var expanded = Expansion.words(node.words, ctx)
 	if expanded.values.is_empty(): return
@@ -307,20 +323,25 @@ static func _dispatch(ctx:Context):
 			name = "["
 	var scope = ctx.get_scope(name)
 	if scope == null: scope = {}
-	var script = scope.get(Types.ScopeDataKeys.SCRIPT)
-	if script is GDScript: script = script.new()
+	var script = _instance(scope.get(Types.ScopeDataKeys.SCRIPT))
 	if is_instance_valid(script) and script.has_method("execute"):
 		script.execute(ctx)
 	else:
 		ctx.append_error("Unrecognized command: " + name)
 		ctx.exit_code = Types.ExitCode.ERR
 
+## Scope entries hold a command script or an existing command object.
+static func _instance(command):
+	if command is GDScript:
+		return load("res://addons/addon_lib/gdsh/load.gd").fresh(command).new()
+	return command
+
 static func _call_function(name:String, ctx:Context, args:Array):
 	var source = str(ctx.functions.get(name, ""))
 	var root = ctx.get_root_ctx()
 	var cached = root._function_cache.get(name, {})
 	if cached.get("source") != source:
-		var parsed = Parser.parse(source)
+		var parsed = Parser.parse(source, false, ctx.raw_commands)
 		if not parsed.error.is_empty():
 			_parse_error(ctx, parsed.error)
 			return

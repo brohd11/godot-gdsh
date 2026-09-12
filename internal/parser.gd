@@ -10,18 +10,20 @@ var error:Dictionary = {}
 var tolerant:bool = false
 var completion:Dictionary = {"words": [], "redirect": false, "redirect_op": "", "redirect_word": {}, "start": 0}
 var _depth:int = 0
+var raw_commands:Array[String] = []
 
-static func parse(text:String, incomplete:=false) -> Dictionary:
-	var scanned = Lexer.scan(text, incomplete)
+static func parse(text:String, incomplete:=false, raw_names:Array[String]=[]) -> Dictionary:
+	var scanned = Lexer.scan(text, incomplete, raw_names)
 	if not scanned.error.is_empty():
 		return {"tree": {}, "error": scanned.error, "completion": {"words": [], "redirect": false, "redirect_op": "", "redirect_word": {}, "start": 0}}
-	return from_tokens(scanned.tokens, text, incomplete)
+	return from_tokens(scanned.tokens, text, incomplete, raw_names)
 
-static func from_tokens(input:Array, text:String, incomplete:=false) -> Dictionary:
+static func from_tokens(input:Array, text:String, incomplete:=false, raw_names:Array[String]=[]) -> Dictionary:
 	var parser = new()
 	parser.tokens = input
 	parser.source = text
 	parser.tolerant = incomplete
+	parser.raw_commands = raw_names
 	var tree = parser._list("eof")
 	return {"tree": tree, "error": parser.error, "completion": parser.completion}
 
@@ -197,7 +199,13 @@ func _simple(header:bool) -> Dictionary:
 	completion = {"words": node.words, "redirect": false, "redirect_op": "", "redirect_word": {}, "start": node.start}
 	while not _peek().kind in ["eof", ";", "\n", "|", "&&", "||", "}", ")"] and error.is_empty():
 		if header and _peek().kind == "{": break
-		if _peek().kind == "redirect":
+		if _peek().kind == "raw_args":
+			var raw = _take()
+			node.raw_args = (str(node.get("raw_args", "")).rstrip(" \t") + " " + raw.raw).strip_edges(true, false)
+			completion.redirect = false
+			completion.raw_args = node.raw_args
+			completion.raw_start = raw.start
+		elif _peek().kind == "redirect":
 			node.redirs.append(_redirect())
 		elif _peek().kind == "word" or _peek().kind == "{" and not node.words.is_empty():
 			var word = _word()
@@ -227,7 +235,7 @@ func _word() -> Dictionary:
 	var word = _expect("word").duplicate(true)
 	for part in word.get("parts", []):
 		if part.kind == "substitution":
-			var nested = from_tokens(part.tokens, source, tolerant)
+			var nested = from_tokens(part.tokens, source, tolerant, raw_commands)
 			part.tree = nested.tree
 			if not nested.error.is_empty(): error = nested.error
 			if tolerant and not part.closed:
@@ -299,7 +307,7 @@ func _assignment() -> Dictionary:
 	if braces != 0 or parens != 0: _fail("Unclosed assignment value")
 	end = maxi(start, end)
 	var value = source.substr(start, end - start).strip_edges()
-	var scanned = Lexer.scan(value, tolerant)
+	var scanned = Lexer.scan(value, tolerant, raw_commands)
 	# An assignment is a scalar: preserve source spacing and punctuation while
 	# expanding quote-aware fragments, without joining and reparsing arguments.
 	var scalar = Lexer.literal(value)
@@ -318,7 +326,7 @@ func _assignment() -> Dictionary:
 	for word in words:
 		for part in word.parts:
 			if part.kind == "substitution":
-				var nested = from_tokens(part.tokens, value, tolerant)
+				var nested = from_tokens(part.tokens, value, tolerant, raw_commands)
 				part.tree = nested.tree
 				if not nested.error.is_empty(): _fail(nested.error.message, first)
 	return {"kind": "alias" if is_alias else "assignment", "name": name, "local": is_local, "words": words, "source": value}
