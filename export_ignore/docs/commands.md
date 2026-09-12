@@ -37,6 +37,12 @@ entry if a host inserts the same name into each. The lower-level
 `GDSh.Load.load_command()`, `load_directory()`, and `load_builtins()` helpers are
 available when direct scope construction is useful.
 
+`load_builtins()` includes the hidden `builtins` parent and the direct built-in
+registrations. Both `echo hello` and `builtins echo hello` work in a default
+context. Neither appears in root completion; `builtins ` offers public built-in
+names and delegates further completion to the selected child. Run `builtins` or
+`builtins --help` to list them, and `builtins echo --help` for a child's help.
+
 Directory loading recognizes loose `.gd` files and `name/name.gd` entries. A
 directory-backed command automatically discovers subcommands stored as
 `child/child.gd`; loose command files do not acquire sibling directories as

@@ -3,10 +3,15 @@
 GDSh is a runtime copy of Editor Console's execution engine. It does not include
 Editor Console, its commands, editor-only UI, OS mode, or the `os` command.
 
-The development tree imports runtime string, sorting, class-inspection, and
-highlighting helpers from `addons/addon_lib/brohd/alib_runtime/`, including their
-transitive dependencies and UID sidecars. No generated ALib namespace is needed.
-A standalone distribution must bundle these helpers.
+String, sorting, and class-enumeration utilities are copied into
+`internal/utils.gd`. Each function has a `#! using` tag with its fully qualified
+ALib source function for future synchronization. Class enumeration builds a fresh
+dictionary on each call; it does not cache the registry.
+
+The console imports only the GDSh highlighter, palette, and highlighter base from
+`addons/addon_lib/brohd/alib_runtime/misc/syntax_highlighters/text/`. A standalone
+distribution must bundle those three scripts and their UID sidecars. No generated
+ALib namespace or external utility scripts are needed.
 
 ## Exporting
 
@@ -24,7 +29,7 @@ python3 tests/gdsh/run_headless.py --godot godot --export
 ```
 
 The tests live in the separate plugin tests repository at `tests/gdsh/`. The
-runner builds a temporary project containing GDSh and its runtime helper
+runner builds a temporary project containing GDSh and its highlighting
 dependencies, imports it, and runs the suite outside the editor. `--export` also
 exports binary scripts to a PCK and reruns the suite from an empty directory using
 that pack. No export templates are required for this pack-only check. Use `--keep`

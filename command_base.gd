@@ -5,9 +5,7 @@ const Completion = preload("res://addons/addon_lib/gdsh/completion.gd")
 const Execution = preload("res://addons/addon_lib/gdsh/execute.gd")
 const Options = preload("res://addons/addon_lib/gdsh/options.gd")
 const Paths = preload("res://addons/addon_lib/gdsh/internal/paths.gd")
-const Runtime = preload("res://addons/addon_lib/gdsh/internal/runtime.gd")
-const UString = Runtime.UString
-const USort = Runtime.USort
+const Utils = preload("res://addons/addon_lib/gdsh/internal/utils.gd")
 const PRINT_DEBUG = Types.PRINT_DEBUG
 const _UNAMED = "UnamedCommand"
 
@@ -304,7 +302,7 @@ func _get_commands_in_dir(sort_priority:=true):
 	for scope in scopes.values():
 		Options.add_command_script_to_dict(scope[Types.ScopeDataKeys.SCRIPT], options)
 	if sort_priority:
-		options = USort.sort_dict_with_priority_key(options, &"priority")
+		options = Utils.sort_dict_with_priority_key(options, &"priority")
 	return options
 
 
@@ -412,11 +410,11 @@ func _get_flag_type_completions(completion:Completion):
 	elif flag_type == FlagType.CLASS:
 		var classes = ClassDB.get_class_list()
 		completions.append_array(classes)
-		var user_classes = Runtime.UClassDetail.get_all_global_class_paths().keys()
+		var user_classes = Utils.get_all_global_class_paths().keys()
 		completions.append_array(user_classes)
 
 	elif flag_type == FlagType.USER_CLASS:
-		var user_classes = Runtime.UClassDetail.get_all_global_class_paths().keys()
+		var user_classes = Utils.get_all_global_class_paths().keys()
 		completions.append_array(user_classes)
 
 

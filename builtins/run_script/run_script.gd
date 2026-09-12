@@ -16,7 +16,7 @@ static func get_self_command_data():
 	})
 
 func _consume_self(ctx:Context) -> ExitCode:
-	script_path = _complete_path(UString.unquote(_consume_token(ctx)), ctx.cwd)
+	script_path = _complete_path(Utils.unquote(_consume_token(ctx)), ctx.cwd)
 	return ExitCode.OK
 
 func _execute(ctx:Context):

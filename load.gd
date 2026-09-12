@@ -58,6 +58,9 @@ static func load_directory(path:String, child_directories_only:=false) -> Dictio
 
 static func load_builtins() -> Dictionary:
 	var scopes = {}
+	var parent = load_command("res://addons/addon_lib/gdsh/builtins/builtins.gd")
+	if parent != null:
+		scopes[parent.get_command_name()] = {Types.ScopeDataKeys.SCRIPT: parent}
 	for name in BUILTIN_NAMES:
 		var path = "res://addons/addon_lib/gdsh/builtins/%s/%s.gd" % [name, name]
 		var script = load_command(path)
