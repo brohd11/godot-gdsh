@@ -40,7 +40,7 @@ console.set_highlighter(syntax) # Also works before add_child(console).
 
 `GDSh.Console.ScriptHighlighter` is the alternative for richer lexical coloring
 of scripts, including strings, numbers, comments, and multiline constructs. It
-uses the existing ALib tokenizer and accepts the same palette:
+uses GDSh's self-contained script tokenizer and accepts the same palette:
 
 ```gdscript
 var syntax = GDSh.Console.ScriptHighlighter.new()

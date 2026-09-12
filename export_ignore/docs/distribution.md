@@ -8,13 +8,18 @@ String, sorting, and class-enumeration utilities are copied into
 ALib source function for future synchronization. Class enumeration builds a fresh
 dictionary on each call; it does not cache the registry.
 
-The default console highlighter and shared palette are local to GDSh. The
-script-oriented option imports the GDSh highlighter, palette, and highlighter base from
-`addons/addon_lib/brohd/alib_runtime/misc/syntax_highlighters/text/`. A standalone
-distribution must bundle those three scripts and their UID sidecars. No generated
-ALib namespace or external utility scripts are needed. The ALib script highlighter
-has not yet been ported locally; the public `GDSh.Console.ScriptHighlighter`
-adapter translates GDSh palette colors for it.
+Both highlighters, their shared palette, and the script tokenizer's cache and
+helpers are local to GDSh. A standalone distribution needs only the GDSh directory,
+including its resources and UID sidecars. No ALib files or generated namespace
+are required.
+
+ALib's text dispatcher optionally loads
+`res://addons/addon_lib/gdsh/internal/script_highlighter_logic.gd` for `.gdsh`
+files. That script is a standalone `RefCounted` implementing
+`setup(text_edit, palette)`, `get_line_highlighting(line)`, and `clear_cache()`.
+It accepts either library's palette through shared color properties. If the
+provider is absent, ALib returns `null` and its text wrapper displays plain text.
+ALib's supported-extension queries include `.gdsh` only when the provider exists.
 
 ## Exporting
 
@@ -32,8 +37,8 @@ python3 tests/gdsh/run_headless.py --godot godot --export
 ```
 
 The tests live in the separate plugin tests repository at `tests/gdsh/`. The
-runner builds a temporary project containing GDSh and its highlighting
-dependencies, imports it, and runs the suite outside the editor. `--export` also
+runner builds a temporary project containing only GDSh and its test fixtures,
+rejects external dependencies, imports it, and runs the suite outside the editor. `--export` also
 exports binary scripts to a PCK and reruns the suite from an empty directory using
 that pack. No export templates are required for this pack-only check. Use `--keep`
 to retain the temporary project.

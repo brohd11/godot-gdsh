@@ -1,38 +1,24 @@
 extends SyntaxHighlighter
-## Script-oriented ALib tokenizer adapted to the shared GDSh palette.
+## SyntaxHighlighter wrapper around GDSh's self-contained script tokenizer.
 
 const Palette = preload("res://addons/addon_lib/gdsh/internal/palette.gd")
-const GDShHighlighter = preload("res://addons/addon_lib/brohd/alib_runtime/misc/syntax_highlighters/text/types/gdsh_highlighter.gd")
-const ALibPalette = preload("res://addons/addon_lib/brohd/alib_runtime/misc/syntax_highlighters/text/palette.gd")
-const _SCRIPT_SLOTS = [
-	"text", "comment", "string", "number", "control_flow", "function", "function_def",
-	"variable", "string_name", "symbol", "bracket",
-]
+const Logic = preload("res://addons/addon_lib/gdsh/internal/script_highlighter_logic.gd")
 
 var palette := Palette.new()
-var _highlighter = GDShHighlighter.new()
-var _script_palette = ALibPalette.new()
-
-
-func _init() -> void:
-	_copy_palette()
+var _highlighter = Logic.new()
 
 
 func set_palette(value:Palette) -> void:
 	palette = value if value != null else Palette.new()
-	_copy_palette()
+	if _highlighter.text_edit != null:
+		_highlighter.setup(_highlighter.text_edit, palette)
 	clear_highlighting_cache()
-
-
-func _copy_palette() -> void:
-	for slot in _SCRIPT_SLOTS:
-		_script_palette.set(slot, palette.get(slot))
 
 
 func _bind() -> void:
 	var edit = get_text_edit()
 	if edit != null and _highlighter.text_edit != edit:
-		_highlighter.setup(edit, _script_palette)
+		_highlighter.setup(edit, palette)
 
 
 func _get_line_syntax_highlighting(line:int) -> Dictionary:
