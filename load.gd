@@ -7,6 +7,8 @@ const CommandBase = preload("res://addons/addon_lib/gdsh/command_base.gd")
 # Explicit dependencies keep builtin scripts reachable in relocated plugin exports.
 const BUILTIN_SCRIPTS = [
 	preload("res://addons/addon_lib/gdsh/builtins/builtins.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/hidden/hidden.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/clear/clear.gd"),
 	preload("res://addons/addon_lib/gdsh/builtins/break/break.gd"),
 	preload("res://addons/addon_lib/gdsh/builtins/continue/continue.gd"),
 	preload("res://addons/addon_lib/gdsh/builtins/return/return.gd"),
@@ -64,7 +66,8 @@ static func load_directory(path:String, child_directories_only:=false) -> Dictio
 			var candidate = path.path_join(name).path_join(name + ".gd")
 			if ResourceLoader.exists(candidate, "GDScript"):
 				candidates.append(candidate)
-		elif not child_directories_only and entry.ends_with(".gd"):
+		# A loose manifest.gd preloads the directory's commands for exporters; it is not a command.
+		elif not child_directories_only and entry.ends_with(".gd") and entry != "manifest.gd":
 			candidates.append(path.path_join(entry))
 	candidates.sort()
 	var scopes = {}

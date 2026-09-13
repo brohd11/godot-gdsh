@@ -56,15 +56,16 @@ operators are rejected; quote operator characters intended as data.
 ## Builtins and boundaries
 
 New contexts register `break`, `continue`, `return`, `exit`, `shift`, `true`,
-`false`, `[`, `expr`, `echo`, `source`, `cd`, and `help`, plus internal function
-and script invocation commands. Builtins begin in `scopes_hidden`, keeping root
-completion focused on host-loaded commands.
+`false`, `[`, `expr`, `echo`, `source`, `cd`, `help`, and `clear`, plus internal
+function and script invocation commands. Builtins begin in `scopes_hidden`, keeping
+root completion focused on host-loaded commands.
 
 The hidden `builtins` parent lists the public built-ins when invoked alone. Type
 `builtins ` to complete their names, or use `builtins echo hello` to invoke one.
-Direct calls such as `echo hello` remain available. Namespaced calls always use
-the bundled command, even when a host overrides its top-level name. Internal
-function and script invocation commands are omitted from the parent's children.
+Namespaced calls always use the bundled command, even when a host overrides its
+top-level name. The `hidden` parent lists discoverable hidden commands, which by
+default is the `builtins` namespace; `hidden builtins echo hello` also works.
+Direct calls such as `echo hello` remain available.
 
 `help` prints sorted `Commands` and `Hidden commands` sections and omits reserved
 internal names beginning with `__`. Use `<command> --help` for command-specific

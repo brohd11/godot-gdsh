@@ -6,6 +6,7 @@ const Parser = preload("res://addons/addon_lib/gdsh/internal/parser.gd")
 const Expansion = preload("res://addons/addon_lib/gdsh/internal/expansion.gd")
 const Options = preload("res://addons/addon_lib/gdsh/options.gd")
 const Types = preload("res://addons/addon_lib/gdsh/internal/types.gd")
+const Utils = preload("res://addons/addon_lib/gdsh/internal/utils.gd")
 
 var raw_text:String
 var caret_col:int
@@ -53,7 +54,7 @@ func get_completions() -> Dictionary:
 	if scope == null:
 		if show_commands:
 			for name:String in context.scopes:
-				if not name.begins_with("__"):
+				if not name.begins_with("__") and Utils.is_discoverable(context.scopes[name]):
 					options.add_option(name)
 			for name in context.functions:
 				options.add_option(name + "[func]", {&"insert": name})

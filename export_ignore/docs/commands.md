@@ -37,13 +37,21 @@ entry if a host inserts the same name into each. The lower-level
 `GDSh.Load.load_command()`, `load_directory()`, and `load_builtins()` helpers are
 available when direct scope construction is useful.
 
-`load_builtins()` includes the hidden `builtins` parent and the direct built-in
-registrations. Both `echo hello` and `builtins echo hello` work in a default
-context. Neither appears in root completion; `builtins ` offers public built-in
-names and delegates further completion to the selected child. Run `builtins` or
-`builtins --help` to list them, and `builtins echo --help` for a child's help.
+`load_builtins()` includes the `builtins` and `hidden` parents and the direct
+built-in registrations. Both `echo hello` and `builtins echo hello` work; namespaced
+calls use the bundled command even when a host overrides its top-level name.
+`builtins ` completes public built-ins, and `builtins --help` lists them.
 
-Directory loading recognizes loose `.gd` files and `name/name.gd` entries. A
+Command data may set `&"discoverable": false`. Root completion, `help`, and the
+`hidden` listing omit such commands, but they still run by name and namespace
+commands (directory children) list them. Built-in children are non-discoverable, so
+`hidden` lists `builtins` rather than every built-in; use `hidden builtins echo`.
+`hidden` routes to the context's discoverable `scopes_hidden` entries (except `__`
+internals) by registered name, including host-loaded hidden commands.
+
+Directory loading recognizes loose `.gd` files and `name/name.gd` entries. A loose
+`manifest.gd` is skipped; it may preload the directory's commands so exporters
+that follow preloads include them. A
 directory-backed command automatically discovers subcommands stored as
 `child/child.gd`; loose command files do not acquire sibling directories as
 children. Override `_get_commands()` to provide a custom command tree.
@@ -125,6 +133,11 @@ statement boundaries, and redirections retain their normal meaning. Raw handlers
 append output/error to their context and return an integer status. Hooks remain
 available inside functions, sourced scripts, aliases, and command substitutions.
 With no raw names configured, the language is unchanged.
+
+`host_data["clear_callback"]`: `Callable(ctx, history:bool)` handles the `clear`
+builtin (`clear [--history]`) and may return an exit status. `GDSh.Console` installs
+a default for its transcript and history unless the key is already set; without a
+callback `clear` fails with "no console is attached".
 
 `Context.host_data` carries host services or bindings separately from `data`'s
 per-command/control-flow state. Its dictionary is shallow-copied into child,

@@ -18,6 +18,10 @@ spaces. Ctrl+Backspace deletes back to the previous space, `.`, `/`, quote, or
 `=`; Left/Right close the completion popup. The completion popup sizes itself to
 its choices and scrolls after it reaches half the window height.
 
+The `clear` builtin clears the transcript (`clear --history` also clears history)
+through a `clear_callback` the console installs in its context's `host_data`. A host
+that sets its own callback first keeps it.
+
 The transcript echoes each command with the input highlighter's colors through
 `console.format_command(text)`, which uses the highlighter's `to_bbcode` when it
 has one. Set `console.echo_values = true` to prefix variables and aliases with a

@@ -88,7 +88,7 @@ func to_bbcode(source:String, show_values:=false) -> String:
 	for index in source.length() + 1:
 		var at_end = index == source.length()
 		if index > run_start and (at_end or previews.has(index) or _colors[index] != _colors[run_start]):
-			out += _color_run(source.substr(run_start, index - run_start), _colors[run_start])
+			out += Utils.color_text(source.substr(run_start, index - run_start), _colors[run_start])
 			run_start = index
 		if not at_end and previews.has(index):
 			out += previews[index]
@@ -115,11 +115,7 @@ func _preview(value:String, undefined:=false) -> String:
 		value = value.left(_PREVIEW_LENGTH) + "…"
 	var bracket = palette.unknown_variable.to_html(false)
 	var color = _UNDEFINED_COLOR if undefined else palette.text
-	return "[color=%s][lb][/color]%s[color=%s]][/color]" % [bracket, _color_run(value, color), bracket]
-
-
-static func _color_run(text:String, color:Color) -> String:
-	return "[color=%s]%s[/color]" % [color.to_html(false), text.replace("[", "[lb]")]
+	return "[color=%s][lb][/color]%s[color=%s]][/color]" % [bracket, Utils.color_text(value, color), bracket]
 
 
 func _paint(start:int, end:int, color:Color) -> void:

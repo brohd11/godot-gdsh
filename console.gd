@@ -40,6 +40,7 @@ var _font_override:Font = SourceFont
 
 func _init(initial_context:Context=null) -> void:
 	context = initial_context if initial_context != null else Context.new()
+	context.host_data.get_or_add("clear_callback", _clear_from_command)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	_input_panel = PanelContainer.new()
@@ -94,6 +95,7 @@ func _apply_theme() -> void:
 
 func set_context(value:Context) -> void:
 	context = value if value != null else Context.new()
+	context.host_data.get_or_add("clear_callback", _clear_from_command) # A host's callback wins.
 	input.context = context
 	last_result = null
 	update_prompt()
@@ -191,6 +193,14 @@ func clear_output() -> void:
 func clear_history() -> void:
 	command_history.clear()
 	_history_index = -1
+
+
+## Default handler for the `clear` builtin, installed unless the host supplied one.
+func _clear_from_command(_ctx:Context, history:bool) -> int:
+	clear_output()
+	if history:
+		clear_history()
+	return Context.ExitCode.OK
 
 
 func update_prompt() -> void:
