@@ -144,3 +144,19 @@ per-command/control-flow state. Its dictionary is shallow-copied into child,
 subshell, and completion contexts. Prefer weak references for UI bindings to
 avoid retaining disposed controls. Hosts own the lifetime of shared objects.
 No OS interpretation or editor-class resolution is built into these hooks.
+
+## Utilities
+
+`GDSh.Utils.Value.convert(arg, type, base_type="")` converts console strings to a
+`Variant.Type`: bools, numbers, `StringName`, array literals, tuples such as
+`"(1, 2)"` or `"Vector2(1, 2)"`, html colors, and other `var_to_str` forms. With a
+`base_type`, int targets also accept class constants (`"SIZE_FILL"`,
+`"Control.SizeFlags.SIZE_FILL"`). It returns `null` when conversion is not possible.
+
+`GDSh.Utils.Method.call_method(ctx, target, method, args, create_default_args=false,
+object_default=Callable())` calls a method directly on `target`: a `Script` allows its
+static methods, and any other object (an instance or a node from the tree) allows its
+own. Argument types are checked and converted with `Value.convert`; missing trailing
+arguments use declared defaults, and `create_default_args` fills the rest
+(`object_default.call(class_name)` for object parameters). Errors and conversion notes
+are appended to `ctx`. It returns `{"ok": bool, "result": Variant}`.

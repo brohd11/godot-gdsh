@@ -2,6 +2,10 @@
 ## identifying the source function for synchronization.
 
 const _Paths = preload("res://addons/addon_lib/gdsh/internal/paths.gd")
+## String-to-typed-value conversion: Value.convert(arg, type, base_type).
+const Value = preload("res://addons/addon_lib/gdsh/internal/value.gd")
+## Checked method calls on a Script (static) or any object: Method.call_method(ctx, target, name, args).
+const Method = preload("res://addons/addon_lib/gdsh/internal/method_call.gd")
 
 ## Whether a scope entry appears in top-level listings (root completion, `hidden`, `help`).
 ## Commands opt out with `&"discoverable": false`; namespace commands list them regardless.
