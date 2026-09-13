@@ -63,7 +63,22 @@ so it does not provide hot reloading.
 
 Command metadata, flags, positional counts, `--` payloads, and per-command
 `--help` use the Editor Console command format. `GDSh.Options` builds the
-dictionaries used by routing and completion. Icons are host-provided values;
+dictionaries used by routing and completion. `--help` and `-h` print a command's
+help and return `OK`.
+
+A boolean flag can declare a one-letter alias, which may be grouped:
+
+```gdscript
+options.add_option("--recursive", {&"short": "r", &"help": "Descend into children."})
+options.add_option("--pretty", {&"short": "p", &"help": "Indented output."})
+# `nodes -rp` is the same as `nodes --recursive --pretty`.
+```
+
+A short form must be one letter; value flags (`--name=`) and `h` cannot have one.
+An unquoted `-letters` word is a flag group only for commands that declare short
+flags, where an unknown letter is an error; quote a dash-leading argument (`'-x'`).
+Commands without short flags receive such words as ordinary arguments, and words
+such as `-5` are always arguments. Icons are host-provided values;
 hosts are responsible for filtering and rendering suggestions. Internal scripts
 are implementation details, with public entry points exposed through `GDSh`.
 

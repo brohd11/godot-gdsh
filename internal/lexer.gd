@@ -216,6 +216,9 @@ func _dollar(parts:Array, quoted:bool):
 		_nesting -= 1
 		parts.append({"kind": "substitution", "tokens": tokens, "value": source.substr(body_start, body_end - body_start), "start": start, "end": pos, "quoted": quoted, "closed": closed})
 		return
+	if source.substr(pos, 1) == "{":
+		_braced_variable(parts, quoted, start)
+		return
 	var name_start = pos
 	if source.substr(pos, 1) in ["?", "#", "@"]:
 		pos += 1
@@ -226,6 +229,35 @@ func _dollar(parts:Array, quoted:bool):
 		_text(parts, "$", quoted)
 	else:
 		parts.append({"kind": "variable", "value": source.substr(start, pos - start), "quoted": quoted, "start": start, "end": pos})
+
+## `${name}` joins a variable with following text. The part keeps the plain `$name` value,
+## so expansion and highlighting treat it like `$name` over the braced span.
+func _braced_variable(parts:Array, quoted:bool, start:int):
+	var brace = pos
+	pos += 1
+	var name_start = pos
+	if source.substr(pos, 1) in ["?", "#", "@"]:
+		pos += 1
+	else:
+		while pos < source.length() and _identifier_char(source[pos]):
+			pos += 1
+	var name = source.substr(name_start, pos - name_start)
+	if name != "" and source.substr(pos, 1) == "}":
+		pos += 1
+		parts.append({"kind": "variable", "value": "$" + name, "quoted": quoted, "start": start, "end": pos})
+		return
+	if not tolerant:
+		_fail("Bad substitution", start)
+		return
+	# Completion and highlighting: keep a partly typed ${...} together as one variable span.
+	if source.substr(pos, 1) == "}":
+		pos += 1
+		parts.append({"kind": "variable", "value": "$" + name, "quoted": quoted, "start": start, "end": pos})
+	elif pos == source.length():
+		parts.append({"kind": "variable", "value": "$" + name, "quoted": quoted, "start": start, "end": pos})
+	else:
+		pos = brace + 1
+		_text(parts, "${", quoted)
 
 static func _identifier_char(ch:String) -> bool:
 	return ch == "_" or ch >= "a" and ch <= "z" or ch >= "A" and ch <= "Z" or ch >= "0" and ch <= "9"

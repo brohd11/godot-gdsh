@@ -68,12 +68,16 @@ func get_help_string(full_string:bool=false) -> String:
 	flags.erase(Options.Keys.COMMAND_META)
 	if flags.size() > 0:
 		help += "\nFlags:"
-		# width of the widest flag name, so the help descriptions line up in a column
+		# "-r, --recursive" labels; long-only flags are indented to line up once any flag has a short form
+		var has_shorts = not _short_flag_map().is_empty()
+		var labels = {}
 		var flag_width = 0
 		for f in flags.keys():
 			if Options.Keys.get_seperator(f) != null:
 				continue
-			flag_width = maxi(flag_width, f.length())
+			var short = flags[f].get(&"short", "")
+			labels[f] = ("-%s, " % short if short != "" else "    " if has_shorts else "") + f
+			flag_width = maxi(flag_width, labels[f].length())
 		for f in flags.keys():
 			var separator = Options.Keys.get_seperator(f)
 			if separator != null:
@@ -82,11 +86,11 @@ func get_help_string(full_string:bool=false) -> String:
 				continue
 			var f_help = flags[f].get(&"help", "")
 			if f_help == "":
-				help += "\n  " + f
+				help += "\n  " + labels[f]
 				continue
 			if f_help.contains("\n"):
 				f_help = f_help.get_slice("\n", 0)
-			help += "\n  " + f.rpad(flag_width) + "  " + f_help
+			help += "\n  " + labels[f].rpad(flag_width) + "  " + f_help
 
 	var commands = get_commands()
 	commands.erase(Options.Keys.COMMAND_META)
@@ -107,13 +111,31 @@ func _route(ctx:Context, completion:Completion=null):
 		var meta = ctx._token_metadata.front() if not ctx._token_metadata.is_empty() else {}
 		var literal = meta.get("literal", false)
 		if not in_payload and not literal:
-			if token == "--help":
+			if token == "--help" or token == "-h":
 				if ctx.execute: ctx.append_output(get_help_string(true))
-				return ExitCode.HELP
+				return ExitCode.OK
 			if token == "--":
 				_consume_token(ctx)
 				in_payload = true
 				continue
+			if _is_short_group(token):
+				# Commands without short flags keep dash words as arguments ([ -f x ], -5).
+				var shorts = _short_flag_map()
+				if not shorts.is_empty():
+					var unknown = ""
+					for letter in token.substr(1):
+						if not shorts.has(letter):
+							unknown = letter
+							break
+					if unknown != "":
+						if completion != null and ctx.unconsumed_tokens.size() == 1: break
+						ctx.append_error("Unrecognized flag: -" + unknown)
+						return ExitCode.ERR
+					_consume_token(ctx)
+					for letter in token.substr(1):
+						consumed_tokens.append(shorts[letter]) # Completion hides flags already given.
+						_process_flag(shorts[letter])
+					continue
 			if token.begins_with("--"):
 				var flag = _split_flag(token)
 				if not get_flags().has(flag):
@@ -138,6 +160,24 @@ func _route(ctx:Context, completion:Completion=null):
 		else:
 			positional_arg_index = positional_args.size() if next else maxi(0, positional_args.size() - 1)
 	return null
+
+## A dash followed only by letters, such as -ir. Digits and a lone dash stay arguments.
+static func _is_short_group(token:String) -> bool:
+	if token.length() < 2 or token[0] != "-":
+		return false
+	for letter in token.substr(1):
+		if not (letter >= "a" and letter <= "z" or letter >= "A" and letter <= "Z"):
+			return false
+	return true
+
+## Letter -> long flag name, for flags that declare &"short".
+func _short_flag_map() -> Dictionary:
+	var shorts = {}
+	var flags = get_flags()
+	for f in flags:
+		if flags[f] is Dictionary and flags[f].has(&"short"):
+			shorts[flags[f][&"short"]] = f
+	return shorts
 
 func _consume_self(ctx:Context) -> ExitCode:
 	_consume_token(ctx)

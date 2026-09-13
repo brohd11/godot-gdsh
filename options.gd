@@ -36,7 +36,7 @@ func remove_option(option_name:String):
 
 #! keys name:String help:String positional_count:int trailing_char:String icon:Variant
 #! keys get_command:Callable priority:int metadata:Dictionary arg_count:int insert:String
-#! keys flag_completion:Dictionary allow_positional_paths:bool raw:bool discoverable:bool
+#! keys flag_completion:Dictionary allow_positional_paths:bool raw:bool discoverable:bool short:String
 ## Nested Dict: flag_completion - type, dir, ext
 func add_option(option_name:String, params:={}):
 	_option_dict[option_name] = get_single_option_dict(option_name, params)
@@ -57,6 +57,19 @@ static func process_option_dict(params:={}) -> Dictionary:
 
 	if params.has(&"flag_completion"):
 		data.flag_completion = params.flag_completion
+
+	# One-letter alias for a boolean flag; letters group on the command line (-ir). -h is help.
+	if params.has(&"short"):
+		var short = str(params.short)
+		var option_name = str(params.get(&"option_name", ""))
+		if short.length() != 1 or not (short >= "a" and short <= "z" or short >= "A" and short <= "Z"):
+			push_error("GDSh.Options: a short flag must be one letter: '%s' (%s)" % [short, option_name])
+		elif short == "h":
+			push_error("GDSh.Options: -h is reserved for help (%s)" % option_name)
+		elif option_name.ends_with("="):
+			push_error("GDSh.Options: value flags cannot have a short form (%s)" % option_name)
+		else:
+			data.short = short
 
 	if params.has(&"icon"):
 		data.icon = params.icon

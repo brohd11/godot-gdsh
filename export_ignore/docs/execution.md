@@ -25,7 +25,13 @@ dictionaries. The default working directory is `res://`; `cwd` can also be a
 
 Output accumulates in `stdout` and `stderr`, so clear those strings after the host
 consumes them. `last_status` is the last command's status and `exit_code` is the
-execution result. Status codes are `OK=0`, `FAIL=1`, `ERR=2`, and `HELP=3`.
+execution result. Status codes are `OK=0`, `FAIL=1`, and `ERR=2`; `--help`/`-h` returns `OK`.
+
+Commands may color output with BBCode (`GDSh.Utils.color_text`). Output that
+becomes data has that markup removed: a pipeline stage's output passed to the next
+command, `$(...)` captures, and redirected output. The final output returned to the
+host keeps it. Hosts that don't render BBCode can pass results through
+`GDSh.Context.plain_text()`.
 
 `exit N` stops the current execution context and preserves `N`; it does not quit
 the game. Create a new session or explicitly reset `exit_requested` before

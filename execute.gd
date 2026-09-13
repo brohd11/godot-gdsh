@@ -148,7 +148,7 @@ static func _prepare_redirections(redirs:Array, ctx:Context) -> Dictionary:
 
 static func _write_redirect(route:Dictionary, content:String) -> String:
 	if route.discard or content.is_empty(): return ""
-	if route.file.store_string(content): return ""
+	if route.file.store_string(Context.plain_text(content)): return ""
 	return "GDSh redirection: cannot write '%s'\n" % route.path
 
 static func _close_redirections(redirects:Dictionary):
@@ -214,9 +214,11 @@ static func _pipeline(stages:Array, ctx:Context, aliases:Dictionary):
 		ctx.stdin = input
 		ctx.stdout = ""
 		_run(stages[i], ctx, aliases)
-		input = ctx.stdout
+		var last = i == stages.size() - 1
+		# Piped output is data for the next command; only the final stage keeps display markup.
+		input = ctx.stdout if last else Context.plain_text(ctx.stdout)
 		ctx.stdin = saved_input
-		ctx.stdout = saved_output + (input if i == stages.size() - 1 else "")
+		ctx.stdout = saved_output + (input if last else "")
 
 static func _loop(node:Dictionary, ctx:Context, aliases:Dictionary):
 	var child = Context.new_ctx("Loop", ctx)

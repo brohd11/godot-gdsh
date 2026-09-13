@@ -14,7 +14,9 @@ statement without a separator. Operators and structural braces do not require
 surrounding spaces. Ordinary arguments may contain balanced literal braces, as
 in `echo {a:1}`; quote or escape braces that would otherwise start a block.
 
-Single quotes are literal. Double quotes allow variables and `$(...)`. Unquoted
+Single quotes are literal. Double quotes allow variables and `$(...)`. `${name}`
+ends a variable name explicitly, so it can join following text: `"${name}1"`.
+A `${` without a valid name and closing `}` is a syntax error. Unquoted
 substitution output splits on whitespace, while quoted output remains one
 argument. Empty quoted arguments are retained.
 

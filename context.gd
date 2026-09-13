@@ -135,13 +135,20 @@ func strip_output_newlines():
 	return stdout
 
 func clean_output():
-	return clean_text(stdout)
+	return plain_text(stdout)
 
 func clean_text(text:String):
+	return plain_text(text)
+
+## Text with BBCode color markup removed, as output becomes data (pipes, $(...), files).
+## Text without color tags is returned unchanged; `[lb]` escapes from Utils.color_text are restored.
+static func plain_text(text:String) -> String:
+	if not text.contains("[color="):
+		return text
 	if not is_instance_valid(_clean_output_regex):
 		_clean_output_regex = RegEx.new()
-		_clean_output_regex.compile("\\[color=[A-Za-z0-9]*]|\\[\\/color]")
-	return _clean_output_regex.sub(text, "", true)
+		_clean_output_regex.compile("\\[color=[^\\[\\]]*\\]|\\[/color\\]")
+	return _clean_output_regex.sub(text, "", true).replace("[lb]", "[")
 
 
 func append_error(line:String) -> void:

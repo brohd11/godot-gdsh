@@ -34,7 +34,7 @@ static func word_values(word:Dictionary, ctx:Context, completion:=false, scalar:
 					else:
 						engine.execute_command_multiline(part.value, child)
 					ctx.append_error(child.stderr)
-					value = child.stdout.rstrip("\n")
+					value = Context.plain_text(child.stdout).rstrip("\n")
 					split = not part.quoted and not scalar
 		if split:
 			var pieces = value.replace("\t", " ").replace("\n", " ").split(" ", false)
