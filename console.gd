@@ -4,7 +4,7 @@ extends VBoxContainer
 const Context = preload("res://addons/addon_lib/gdsh/context.gd")
 const Execute = preload("res://addons/addon_lib/gdsh/execute.gd")
 const ConsoleInput = preload("res://addons/addon_lib/gdsh/console_input.gd")
-#! dependency "res://addons/addon_lib/gdsh/internal/source_font.LICENSE.txt" current
+const FONT_LICENSE = "res://addons/addon_lib/gdsh/internal/source_font.LICENSE.txt" #! dependency res://addons/plugin_exporter/licenses/source_font
 const SourceFont = preload("res://addons/addon_lib/gdsh/internal/source_font.tres")
 const Highlighter = preload("res://addons/addon_lib/gdsh/internal/console_highlighter.gd")
 const ScriptHighlighter = preload("res://addons/addon_lib/gdsh/internal/script_highlighter.gd")
