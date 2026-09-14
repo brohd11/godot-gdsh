@@ -74,7 +74,7 @@ func _on_text_changed() -> void:
 	if not _normalizing_text and "\n" in text:
 		_normalizing_text = true
 		var caret = get_caret_column()
-		text = text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+		text = text.replace("\r\n", "; ").replace("\n", "; ").replace("\r", "; ")
 		set_caret_column(mini(caret, text.length()))
 		_normalizing_text = false
 	if _timer != null:

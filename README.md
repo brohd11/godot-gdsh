@@ -4,6 +4,30 @@ GDSh is a runtime shell and command engine for Godot games and application
 consoles. It requires Godot 4.6 or newer and has no editor plugin, autoload,
 editor-only UI, or Editor Console dependency.
 
+## Install
+
+Download the release and place the contents in the addons folder.
+
+You can also use [gdaddon](https://github.com/brohd11/gdaddon) to manage the addon.
+It is a TUI package/repo manager that can install and update addons for you.
+
+Linux, Mac:
+```bash
+curl -fsSL https://raw.githubusercontent.com/brohd11/gdaddon/main/install.sh | sh
+```
+Windows:
+```powershell
+irm https://raw.githubusercontent.com/brohd11/gdaddon/main/install.ps1 | iex
+```
+
+Then, you can add the addon and install, this would install gdsh plus the optional libraries:
+```sh
+cd ~/your/project/
+gdaddon install brohd11/godot-gdsh
+gdaddon install brohd11/godot-gdsh-lib-utils
+gdaddon install brohd11/godot-gdsh-lib-tree
+```
+
 ## Execute scripts
 
 ```gdscript
@@ -31,14 +55,26 @@ var console = GDSh.Console.new()
 console.load("res://commands")
 add_child(console)
 
-# Optional selectable transcript above the prompt.
+# Create an output log above the prompt
 console.create_output()
 ```
 
 See [Console](export_ignore/docs/console.md) for signals, prompt customization,
 history, completion, output, and styling.
 
-## Load commands
+## Commands
+
+There are a handful of commands that come builtin, they are mostly for the inner working of the gdsh, enabling functions, loops, etc.
+Currently, indivual libraries are being published for use in separate libraries. These can be used in addition to your own.
+
+Current libs:
+- [utils](https://github.com/brohd11/godot-gdsh-lib-utils) - assorted unix like utils to help parsing command output
+- [tree](https://github.com/brohd11/godot-gdsh-lib-tree) - tree operations, add, remove, inspect nodes
+
+See [Commands and completion](export_ignore/docs/commands.md) for command trees,
+hidden scopes, help metadata, and custom completions.
+
+### Command template
 
 ```gdscript
 # res://commands/greet.gd
@@ -54,15 +90,6 @@ func _execute(ctx: GDSh.Context):
     ctx.append_output("Hello!")
     return ExitCode.OK
 ```
-
-```gdscript
-var context = GDSh.Context.new()
-context.load("res://commands")
-GDSh.Execute.execute_command("greet", {"parent_ctx": context})
-```
-
-See [Commands and completion](export_ignore/docs/commands.md) for command trees,
-hidden scopes, help metadata, and custom completions.
 
 ## Reference
 

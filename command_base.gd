@@ -134,7 +134,8 @@ func _route(ctx:Context, completion:Completion=null):
 					_consume_token(ctx)
 					for letter in token.substr(1):
 						consumed_tokens.append(shorts[letter]) # Completion hides flags already given.
-						_process_flag(shorts[letter])
+						if _process_flag(shorts[letter]) == ExitCode.ERR:
+							return ExitCode.ERR
 					continue
 			if token.begins_with("--"):
 				var flag = _split_flag(token)
@@ -142,7 +143,8 @@ func _route(ctx:Context, completion:Completion=null):
 					if completion != null and ctx.unconsumed_tokens.size() == 1: break
 					ctx.append_error("Unrecognized flag: " + flag)
 					return ExitCode.ERR
-				_process_flag(_consume_token(ctx))
+				if _process_flag(_consume_token(ctx)) == ExitCode.ERR:
+					return ExitCode.ERR
 				continue
 			if positional_args.is_empty():
 				var commands = get_commands()
@@ -322,7 +324,32 @@ func _get_option_data(token:String, flags:Dictionary, commands:Dictionary):
 	return data
 
 func _process_flag(flag:String):
-	return
+	return _flag_set_var(flag)
+
+## Sets the var named after the flag: "--dry-run" -> dry_run_flag = true, "--count=3" ->
+## count_flag = 3, converted to the var's current type (an untyped null var takes the string).
+## Returns ExitCode.ERR when the var is missing or the value doesn't convert.
+func _flag_set_var(flag:String):
+	if not flag.begins_with("--"):
+		return
+	var var_name = _split_flag(flag).trim_prefix("--").trim_suffix("=").replace("-", "_") + "_flag"
+	if not var_name in self:
+		_ctx_obj.append_error("gdsh command - _flag_set_var - could not find var: %s" % var_name)
+		return ExitCode.ERR
+
+	if not flag.contains("="):
+		set(var_name, true)
+		return
+	var val = _get_flag_value(flag)
+	var target_type = typeof(get(var_name))
+	if target_type == TYPE_NIL:
+		set(var_name, val)
+		return
+	var converted = GDSh.Utils.Value.convert(val, target_type)
+	if converted == null:
+		_ctx_obj.append_error("Invalid value for %s%s (expected %s)" % [_split_flag(flag), val, type_string(target_type)])
+		return ExitCode.ERR
+	set(var_name, converted)
 
 func get_commands(hide_consumed:=false) -> Dictionary:
 	var options = _get_commands()

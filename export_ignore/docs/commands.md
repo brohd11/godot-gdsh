@@ -154,6 +154,16 @@ builtin (`clear [--history]`) and may return an exit status. `GDSh.Console` inst
 a default for its transcript and history unless the key is already set; without a
 callback `clear` fails with "no console is attached".
 
+`host_data["undo_redo"]`: `Callable() -> Object` returns an `UndoRedo`, or any object
+with its `create_action`/`add_do_*`/`add_undo_*`/`commit_action(execute)` methods taking
+`(object, method, args...)`; null applies changes directly. Commands record changes with
+`ctx.undo_action(name)` (see `GDSh.Undo.Action`) and must not apply them themselves.
+`host_data["undo_session"]` is the `GDSh.Undo.Session` buffer used by the `undoredo`
+builtin: between `undoredo --compound [name]` and `undoredo commit [name]` every action
+applies immediately and the whole run is registered as one undo entry (`undoredo cancel`
+reverts it). Root contexts create one; a host that rebuilds contexts per request should
+keep its own and set it.
+
 `Context.host_data` carries host services or bindings separately from `data`'s
 per-command/control-flow state. Its dictionary is shallow-copied into child,
 subshell, and completion contexts. Prefer weak references for UI bindings to

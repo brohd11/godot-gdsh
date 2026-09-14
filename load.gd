@@ -24,6 +24,7 @@ const BUILTIN_SCRIPTS = [
 	preload("res://addons/addon_lib/gdsh/builtins/help/help.gd"),
 	preload("res://addons/addon_lib/gdsh/builtins/function/function.gd"),
 	preload("res://addons/addon_lib/gdsh/builtins/run_script/run_script.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/undoredo/undoredo.gd"),
 ]
 
 

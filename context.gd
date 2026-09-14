@@ -1,6 +1,7 @@
 extends RefCounted
 const Context = preload("res://addons/addon_lib/gdsh/context.gd")
 const Types = preload("res://addons/addon_lib/gdsh/internal/types.gd")
+const Undo = preload("res://addons/addon_lib/gdsh/undo.gd")
 const ExitCode = Types.ExitCode
 static var _clean_output_regex:RegEx
 
@@ -52,6 +53,8 @@ var raw_text:String
 func _init(text:="", include_builtins:=true) -> void:
 	title = text if not text.is_empty() else "GDSh Context"
 	raw_text = text
+	# Child contexts share their parent's session through the shallow host_data copy.
+	host_data["undo_session"] = Undo.Session.new()
 	if include_builtins:
 		scopes_hidden = ResourceLoader.load("res://addons/addon_lib/gdsh/load.gd").load_builtins()
 
@@ -159,6 +162,20 @@ func append_error(line:String) -> void:
 func strip_error_newlines():
 	stderr = stderr.lstrip("\n").rstrip("\n")
 	return stderr
+
+## The host's undo object from `host_data["undo_redo"]: Callable() -> Object`, or null to
+## apply changes directly.
+func get_undo_redo() -> Object:
+	var hook = host_data.get("undo_redo")
+	return hook.call() if hook is Callable and hook.is_valid() else null
+
+## The compound undo buffer shared by this context and its children.
+func get_undo_session() -> Undo.Session:
+	return host_data.get("undo_session")
+
+## One undoable action per command; buffered instead while a compound is open.
+func undo_action(name:String) -> Undo.Action:
+	return Undo.Action.new(name, get_undo_redo(), get_undo_session())
 
 func get_variable(name:String):
 	return ResourceLoader.load("res://addons/addon_lib/gdsh/internal/tokenizer.gd").check_variable(name, self)
