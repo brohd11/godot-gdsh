@@ -22,6 +22,10 @@ The `clear` builtin clears the transcript (`clear --history` also clears history
 through a `clear_callback` the console installs in its context's `host_data`. A host
 that sets its own callback first keeps it.
 
+The `new_ctx` builtin resets the session the same way: it stops the rest of the
+submission, and afterwards the console calls `reset_context()`, which sets
+`context_factory.call()` (a bare `Context` when unset) as the new context.
+
 The transcript echoes each command with the input highlighter's colors through
 `console.format_command(text)`, which uses the highlighter's `to_bbcode` when it
 has one. Set `console.echo_values = true` to prefix variables and aliases with a

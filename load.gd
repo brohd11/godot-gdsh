@@ -9,6 +9,7 @@ const BUILTIN_SCRIPTS = [
 	preload("res://addons/addon_lib/gdsh/builtins/builtins.gd"),
 	preload("res://addons/addon_lib/gdsh/builtins/hidden/hidden.gd"),
 	preload("res://addons/addon_lib/gdsh/builtins/clear/clear.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/new_ctx/new_ctx.gd"),
 	preload("res://addons/addon_lib/gdsh/builtins/break/break.gd"),
 	preload("res://addons/addon_lib/gdsh/builtins/continue/continue.gd"),
 	preload("res://addons/addon_lib/gdsh/builtins/return/return.gd"),
@@ -34,7 +35,8 @@ static func load_command(path:String) -> GDScript:
 		push_error("GDSh.Load: command not found: " + path)
 		return null
 	var script = ResourceLoader.load(path, "GDScript") as GDScript
-	if script == null: # or not script.can_instantiate(): # GDScript always fails can_instantiate for some reason
+	# Not can_instantiate(): it is false for non-@tool scripts while scripting is disabled (the editor), and for @abstract ones.
+	if script == null:
 		push_error("GDSh.Load: cannot instantiate command: " + path)
 		return null
 	var base = script.get_base_script()

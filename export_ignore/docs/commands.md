@@ -154,6 +154,12 @@ builtin (`clear [--history]`) and may return an exit status. `GDSh.Console` inst
 a default for its transcript and history unless the key is already set; without a
 callback `clear` fails with "no console is attached".
 
+`host_data["new_ctx_callback"]`: `Callable(ctx)` handles the `new_ctx` builtin and may
+return an exit status. `new_ctx` then stops the rest of the submission like `exit`.
+`GDSh.Console` installs a default that replaces its context with `context_factory.call()`
+(a bare `Context` when unset) once the submission finishes; without a callback `new_ctx`
+fails with "no console is attached".
+
 `host_data["undo_redo"]`: `Callable() -> Object` returns an `UndoRedo`, or any object
 with its `create_action`/`add_do_*`/`add_undo_*`/`commit_action(execute)` methods taking
 `(object, method, args...)`; null applies changes directly. Commands record changes with

@@ -14,6 +14,8 @@ signal command_submitted(text:String)
 signal command_finished(text:String, result:Context)
 
 var execution_handler:Callable
+## `Callable() -> Context` building the session `new_ctx` resets to; a bare Context when unset.
+var context_factory:Callable
 ## Echoed commands preview variable and alias values, as `[value]$name`.
 var echo_values:=false
 var context:Context
@@ -36,11 +38,13 @@ var _manual_prompt:=false
 var _manual_prompt_text:String
 var _manual_prompt_color:=Color.WHITE
 var _font_override:Font = SourceFont
+var _reset_requested:=false
 
 
 func _init(initial_context:Context=null) -> void:
 	context = initial_context if initial_context != null else Context.new()
 	context.host_data.get_or_add("clear_callback", _clear_from_command)
+	context.host_data.get_or_add("new_ctx_callback", _request_reset)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	_input_panel = PanelContainer.new()
@@ -96,9 +100,15 @@ func _apply_theme() -> void:
 func set_context(value:Context) -> void:
 	context = value if value != null else Context.new()
 	context.host_data.get_or_add("clear_callback", _clear_from_command) # A host's callback wins.
+	context.host_data.get_or_add("new_ctx_callback", _request_reset)
 	input.context = context
 	last_result = null
 	update_prompt()
+
+
+## Replace the session with a fresh one from `context_factory`.
+func reset_context() -> void:
+	set_context(context_factory.call() if context_factory.is_valid() else Context.new())
 
 
 func get_text_edit() -> CodeEdit:
@@ -154,6 +164,10 @@ func execute(text:String) -> Context:
 		execution_handler.call(command, result)
 	else:
 		Execute.execute_command_multiline(command, result)
+	# `new_ctx` defers the swap so the running submission never straddles two sessions.
+	if _reset_requested:
+		_reset_requested = false
+		reset_context()
 	last_result = result
 	context.last_status = result.exit_code
 	context.exit_code = result.exit_code
@@ -200,6 +214,12 @@ func _clear_from_command(_ctx:Context, history:bool) -> int:
 	clear_output()
 	if history:
 		clear_history()
+	return Context.ExitCode.OK
+
+
+## Default handler for the `new_ctx` builtin; `execute` applies it after the submission.
+func _request_reset(_ctx:Context) -> int:
+	_reset_requested = true
 	return Context.ExitCode.OK
 
 
