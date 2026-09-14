@@ -29,10 +29,9 @@ static func word_values(word:Dictionary, ctx:Context, completion:=false, scalar:
 				else:
 					var child = Context.new_ctx("Substitution", ctx, true)
 					var engine = load("res://addons/addon_lib/gdsh/execute.gd")
-					if part.has("tree"):
-						engine._execute_tree(part.tree, child)
-					else:
-						engine.execute_command_multiline(part.value, child)
+					# Expansion is synchronous; the engine fails the command if the body pauses.
+					if not engine.run_substitution(child, part.get("tree", {}), part.value):
+						ctx.data[engine.SUBSTITUTION_FAILED_KEY] = true
 					ctx.append_error(child.stderr)
 					value = Context.plain_text(child.stdout).rstrip("\n")
 					split = not part.quoted and not scalar

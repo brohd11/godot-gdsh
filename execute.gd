@@ -1,5 +1,7 @@
 extends RefCounted
 ## Parse complete input before executing its tree. Only selected nodes expand words.
+## Commands may `await` in `_execute`: every step awaits its command, so sequencing and status
+## wait for completion. Input whose commands never pause still finishes in the calling frame.
 
 const Context = preload("res://addons/addon_lib/gdsh/context.gd")
 const Types = preload("res://addons/addon_lib/gdsh/internal/types.gd")
@@ -9,6 +11,8 @@ const Expansion = preload("res://addons/addon_lib/gdsh/internal/expansion.gd")
 const _IS_LOOP_KEY = "__is_loop__"
 const _LOOP_BREAK_KEY = "__loop_break__"
 const _LOOP_CONTINUE_KEY = "__loop_continue__"
+const _SUBSTITUTION_PENDING_KEY = "__substitution_pending__"
+const SUBSTITUTION_FAILED_KEY = "__substitution_failed__"
 
 static func execute_command_multiline(text:String, ctx:Context=null):
 	if ctx == null: ctx = Context.new()
@@ -17,13 +21,13 @@ static func execute_command_multiline(text:String, ctx:Context=null):
 	if not parsed.error.is_empty():
 		_parse_error(ctx, parsed.error)
 		return ctx
-	return _execute_tree(parsed.tree, ctx)
+	return await _execute_tree(parsed.tree, ctx)
 
 static func execute_command(text:String, params:Dictionary={}):
 	var ctx = params.get("parent_ctx")
 	if ctx == null: ctx = Context.new()
 	if params.get("sub_shell", false): ctx = Context.new_ctx("Subshell", ctx, true)
-	return execute_command_multiline(text, ctx)
+	return await execute_command_multiline(text, ctx)
 
 static func source_file(file_path:String, parent_ctx:Context=null):
 	if parent_ctx == null: parent_ctx = Context.new()
@@ -39,7 +43,29 @@ static func source_file(file_path:String, parent_ctx:Context=null):
 		parent_ctx.append_error("Not a gdsh script: " + file_path)
 		_set_status(parent_ctx, Types.ExitCode.FAIL)
 		return parent_ctx
-	return execute_command_multiline(text, parent_ctx)
+	return await execute_command_multiline(text, parent_ctx)
+
+## Run a `$(...)` body in `ctx` within the current frame; expansion cannot wait. A body whose
+## command pauses is stopped (nothing after it runs when it resumes) and false is returned.
+static func run_substitution(ctx:Context, tree:Dictionary={}, text:="") -> bool:
+	ctx.data[_SUBSTITUTION_PENDING_KEY] = true
+	_substitution_body(ctx, tree, text) # Not awaited: returns at the first pause.
+	if not ctx.data.has(_SUBSTITUTION_PENDING_KEY): return true
+	ctx.exit_requested = true
+	ctx.append_error("GDSh: async commands cannot run inside $(...)")
+	return false
+
+static func _substitution_body(ctx:Context, tree:Dictionary, text:String):
+	if tree.is_empty(): await execute_command_multiline(text, ctx)
+	else: await _execute_tree(tree, ctx)
+	ctx.data.erase(_SUBSTITUTION_PENDING_KEY)
+
+## A `$(...)` that could not finish fails the command that used it.
+static func _substitution_failed(ctx:Context) -> bool:
+	if not ctx.data.has(SUBSTITUTION_FAILED_KEY): return false
+	ctx.data.erase(SUBSTITUTION_FAILED_KEY)
+	_set_status(ctx, Types.ExitCode.ERR)
+	return true
 
 static func _parse_error(ctx:Context, error:Dictionary):
 	ctx.append_error("GDSh syntax error at %d:%d: %s" % [error.line, error.column, error.message])
@@ -51,7 +77,7 @@ static func _set_status(ctx:Context, status:int):
 
 static func _execute_tree(tree:Dictionary, ctx:Context, aliases:Dictionary={}):
 	if not ctx.exit_requested:
-		_run(tree, ctx, aliases)
+		await _run(tree, ctx, aliases)
 	if not ctx.exit_requested:
 		ctx.exit_code = ctx.last_status
 	return ctx
@@ -81,7 +107,7 @@ static func _run(node:Dictionary, ctx:Context, aliases:Dictionary):
 	if redirects.ok:
 		if redirects.stdin_route >= 0:
 			ctx.stdin = redirects.stdin
-		_run_inner(node, ctx, aliases)
+		await _run_inner(node, ctx, aliases)
 	else:
 		_set_status(ctx, Types.ExitCode.FAIL)
 	var output = ctx.stdout
@@ -116,6 +142,9 @@ static func _prepare_redirections(redirs:Array, ctx:Context) -> Dictionary:
 	}
 	for redirect in redirs:
 		var values = Expansion.word_values(redirect.target, ctx)
+		if _substitution_failed(ctx):
+			result.ok = false
+			return result
 		if values.size() != 1 or str(values[0]).is_empty():
 			ctx.append_error("GDSh redirection: target must expand to exactly one non-empty path")
 			result.ok = false
@@ -161,19 +190,20 @@ static func _run_inner(node:Dictionary, ctx:Context, aliases:Dictionary):
 		"list":
 			for item in node.items:
 				if _stopped(ctx): break
-				_run(item, ctx, aliases)
+				await _run(item, ctx, aliases)
 		"logical":
-			_run(node.first, ctx, aliases)
+			await _run(node.first, ctx, aliases)
 			for link in node.links:
 				if _stopped(ctx): break
 				if (link.op == "&&" and ctx.last_status == 0) or (link.op == "||" and ctx.last_status != 0):
-					_run(link.node, ctx, aliases)
+					await _run(link.node, ctx, aliases)
 		"pipeline":
-			_pipeline(node.stages, ctx, aliases)
+			await _pipeline(node.stages, ctx, aliases)
 		"simple":
-			_simple(node, ctx, aliases)
+			await _simple(node, ctx, aliases)
 		"assignment":
 			var value = Expansion.scalar(node.words, ctx)
+			if _substitution_failed(ctx): return
 			if node.local:
 				ctx.variables["$" + node.name] = value
 			else:
@@ -189,18 +219,18 @@ static func _run_inner(node:Dictionary, ctx:Context, aliases:Dictionary):
 		"if":
 			var selected = false
 			for branch in node.branches:
-				if not branch.condition.is_empty(): _run(branch.condition, ctx, aliases)
+				if not branch.condition.is_empty(): await _run(branch.condition, ctx, aliases)
 				if _stopped(ctx): return
 				if branch.condition.is_empty() or ctx.last_status == 0:
-					_run(branch.body, ctx, aliases)
+					await _run(branch.body, ctx, aliases)
 					selected = true
 					break
 			if not selected: _set_status(ctx, 0)
 		"for", "while":
-			_loop(node, ctx, aliases)
+			await _loop(node, ctx, aliases)
 		"subshell":
 			var child = Context.new_ctx("Subshell", ctx, true)
-			_execute_tree(node.body, child, aliases)
+			await _execute_tree(node.body, child, aliases)
 			ctx.append_output(child.stdout)
 			ctx.append_error(child.stderr)
 			_set_status(ctx, child.exit_code)
@@ -213,7 +243,7 @@ static func _pipeline(stages:Array, ctx:Context, aliases:Dictionary):
 		var saved_output = ctx.stdout
 		ctx.stdin = input
 		ctx.stdout = ""
-		_run(stages[i], ctx, aliases)
+		await _run(stages[i], ctx, aliases)
 		var last = i == stages.size() - 1
 		# Piped output is data for the next command; only the final stage keeps display markup.
 		input = ctx.stdout if last else Context.plain_text(ctx.stdout)
@@ -227,6 +257,7 @@ static func _loop(node:Dictionary, ctx:Context, aliases:Dictionary):
 	if node.kind == "for":
 		for word in node.words:
 			var values = Expansion.word_values(word, ctx)
+			if _substitution_failed(ctx): return
 			for value in values:
 				if word.quoted: collection.append(value)
 				else: collection.append_array(value.replace("\t", " ").replace("\n", " ").split(" ", false))
@@ -238,11 +269,11 @@ static func _loop(node:Dictionary, ctx:Context, aliases:Dictionary):
 			child.variables["$" + node.name] = collection[count]
 		else:
 			if count >= 100: break # Retained GDSh loop limit.
-			_run(node.condition, child, aliases)
+			await _run(node.condition, child, aliases)
 			if _stopped(child) or child.last_status != 0: break
 		count += 1
 		child.data.erase(_LOOP_CONTINUE_KEY)
-		_run(node.body, child, aliases)
+		await _run(node.body, child, aliases)
 		body_status = child.last_status
 		if child.data.get(_LOOP_BREAK_KEY, false) or ctx.exit_requested: break
 		# A return in a containing function must unwind the loop too.
@@ -283,14 +314,14 @@ static func _simple(node:Dictionary, ctx:Context, aliases:Dictionary):
 		if not parsed.error.is_empty():
 			_parse_error(ctx, parsed.error)
 		else:
-			_run(parsed.tree, ctx, next_aliases)
+			await _run(parsed.tree, ctx, next_aliases)
 		return
 	if node.has("raw_args"):
 		var command = Context.new_ctx("Raw command", ctx)
 		var scope = ctx.get_scope(node.words[0].raw)
 		var script = _instance(scope.get(Types.ScopeDataKeys.SCRIPT) if scope != null else null)
 		if is_instance_valid(script) and script.has_method("execute_raw"):
-			var status = script.execute_raw(node.raw_args, command)
+			var status = await script.execute_raw(node.raw_args, command)
 			if status is int: command.exit_code = status
 		else:
 			command.append_error("Raw command has no execute_raw handler: " + node.words[0].raw)
@@ -300,12 +331,13 @@ static func _simple(node:Dictionary, ctx:Context, aliases:Dictionary):
 		_set_status(ctx, command.exit_code)
 		return
 	var expanded = Expansion.words(node.words, ctx)
+	if _substitution_failed(ctx): return
 	if expanded.values.is_empty(): return
 	var command = Context.new_ctx("", ctx)
 	command.unconsumed_tokens = expanded.values
 	command._token_metadata = expanded.metadata
 	command.execute = true
-	_dispatch(command)
+	await _dispatch(command)
 	ctx.append_output(command.stdout)
 	ctx.append_error(command.stderr)
 	_set_status(ctx, command.exit_code)
@@ -327,7 +359,7 @@ static func _dispatch(ctx:Context):
 	if scope == null: scope = {}
 	var script = _instance(scope.get(Types.ScopeDataKeys.SCRIPT))
 	if is_instance_valid(script) and script.has_method("execute"):
-		script.execute(ctx)
+		await script.execute(ctx)
 	else:
 		ctx.append_error("Unrecognized command: " + name)
 		ctx.exit_code = Types.ExitCode.ERR
@@ -352,7 +384,7 @@ static func _call_function(name:String, ctx:Context, args:Array):
 	var child = Context.new_ctx(name, ctx)
 	child.data[Types.FUNCTION_KEY] = true
 	child.set_positional_args(name, args)
-	_execute_tree(cached.tree, child)
+	await _execute_tree(cached.tree, child)
 	if child.data.has(Types.RETURN_KEY): child.exit_code = child.data[Types.RETURN_KEY]
 	ctx.append_output(child.stdout)
 	ctx.append_error(child.stderr)

@@ -12,7 +12,11 @@ const Palette = preload("res://addons/addon_lib/gdsh/internal/palette.gd")
 
 signal command_submitted(text:String)
 signal command_finished(text:String, result:Context)
+## Emitted when a submission starts and when it finishes.
+signal busy_changed(busy:bool)
 
+## True while a submission runs; input is locked until it finishes.
+var is_busy:=false
 var execution_handler:Callable
 ## `Callable() -> Context` building the session `new_ctx` resets to; a bare Context when unset.
 var context_factory:Callable
@@ -151,19 +155,27 @@ func load(path:String, hidden:=false) -> Dictionary:
 	return loaded
 
 
+## Awaits async commands; input stays locked and further submissions are refused until done.
 func execute(text:String) -> Context:
 	var command = text.strip_edges()
 	if command.is_empty():
 		return Context.new_ctx("Console submission", context)
+	if is_busy:
+		var refused = Context.new_ctx("Console submission", context)
+		refused.append_error("Console is busy: wait for the running command to finish")
+		refused.exit_code = Context.ExitCode.ERR
+		return refused
 	_add_to_history(command)
 	command_submitted.emit(command)
 	_append_command(command)
 
+	_set_busy(true)
 	var result = Context.new_ctx("Console submission", context)
 	if execution_handler.is_valid():
-		execution_handler.call(command, result)
+		await execution_handler.call(command, result)
 	else:
-		Execute.execute_command_multiline(command, result)
+		await Execute.execute_command_multiline(command, result)
+	_set_busy(false)
 	# `new_ctx` defers the swap so the running submission never straddles two sessions.
 	if _reset_requested:
 		_reset_requested = false
@@ -263,10 +275,18 @@ static func _default_prompt(ctx:Context) -> String:
 
 
 func _on_submit_requested(text:String) -> void:
-	execute(text)
+	if is_busy:
+		return
+	await execute(text)
 	input.clear()
 	if input.is_inside_tree():
 		input.grab_focus()
+
+
+func _set_busy(value:bool) -> void:
+	is_busy = value
+	input.editable = not value
+	busy_changed.emit(value)
 
 
 func _on_output_gui_input(event:InputEvent) -> void:

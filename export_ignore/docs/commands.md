@@ -17,6 +17,13 @@ func _execute(ctx: GDSh.Context):
     return ExitCode.OK
 ```
 
+`_execute` may `await` (a signal, a frame, another coroutine). GDSh waits for it:
+`&&`, pipes, `$?`, loops and the console continue only once the command returns, and
+the console locks input meanwhile. Hosts calling `GDSh.Execute` must `await` the result
+to see such commands finish; input that never pauses still completes in the calling
+frame. `$(...)` bodies cannot wait: a command that pauses there fails the command using
+the substitution.
+
 ## Loading and command trees
 
 ```gdscript

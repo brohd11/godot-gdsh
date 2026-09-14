@@ -34,7 +34,7 @@ func _execute(ctx:Context):
 	sub_ctx.set_positional_args(script_path, positional_args)
 
 
-	Execution.execute_command_multiline(file_as_string, sub_ctx)
+	await Execution.execute_command_multiline(file_as_string, sub_ctx)
 
 	ctx.append_output(sub_ctx.strip_output_newlines())
 	ctx.append_error(sub_ctx.strip_error_newlines())

@@ -204,13 +204,15 @@ func execute(ctx:Context):
 		ctx.exit_code = selected
 		return selected
 	if selected:
-		return selected.execute(ctx)
+		return await selected.execute(ctx)
 	# no child selected: this node requires one -> print usage
 	if not _correct_positional_count():
 		_get_help_for_token(consumed_tokens.front())
 		return ExitCode.FAIL
 
-	var result = _execute(ctx)
+	# Overrides may await; the exit code is set once they finish.
+	@warning_ignore("redundant_await")
+	var result = await _execute(ctx)
 	if result != null and result is int:
 		ctx.exit_code = result
 	return result

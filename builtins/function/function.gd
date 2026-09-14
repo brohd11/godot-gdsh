@@ -24,4 +24,4 @@ func _get_target_positional_count() -> int:
 	return positional_args.size()
 
 func _execute(ctx:Context):
-	Execution._call_function(function_name, ctx, positional_args)
+	await Execution._call_function(function_name, ctx, positional_args)

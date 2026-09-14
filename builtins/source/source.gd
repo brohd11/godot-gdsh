@@ -24,5 +24,5 @@ func _execute(ctx:Context):
 	if source_history.has(path):
 		return
 	source_history[path] = true
-	Execution.source_file(path, ctx)
+	await Execution.source_file(path, ctx)
 
