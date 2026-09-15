@@ -1,3 +1,4 @@
+#! namespace GDSh class Undo
 extends RefCounted
 ## Undoable changes for commands. Get an Action from `ctx.undo_action(name)`:
 ##

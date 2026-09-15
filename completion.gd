@@ -1,3 +1,4 @@
+#! namespace GDSh class Completion
 extends RefCounted
 ## A UI-independent completion request. Routing operates on an isolated context.
 

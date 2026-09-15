@@ -1,4 +1,6 @@
+#! namespace GDSh class CommandBase
 extends RefCounted
+
 const Types = preload("res://addons/addon_lib/gdsh/internal/types.gd")
 const Context = preload("res://addons/addon_lib/gdsh/context.gd")
 const Completion = preload("res://addons/addon_lib/gdsh/completion.gd")

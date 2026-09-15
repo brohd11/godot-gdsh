@@ -1,3 +1,4 @@
+#! namespace GDSh class Execute
 extends RefCounted
 ## Parse complete input before executing its tree. Only selected nodes expand words.
 ## Commands may `await` in `_execute`: every step awaits its command, so sequencing and status

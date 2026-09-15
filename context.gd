@@ -1,4 +1,6 @@
+#! namespace GDSh class Context
 extends RefCounted
+
 const Context = preload("res://addons/addon_lib/gdsh/context.gd")
 const Types = preload("res://addons/addon_lib/gdsh/internal/types.gd")
 const Undo = preload("res://addons/addon_lib/gdsh/undo.gd")

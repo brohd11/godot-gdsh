@@ -1,6 +1,4 @@
 class_name GDSh
-extends RefCounted
-## Portable GDSh execution and command-authoring namespace.
 
 const Execute = preload("res://addons/addon_lib/gdsh/execute.gd")
 const Load = preload("res://addons/addon_lib/gdsh/load.gd")

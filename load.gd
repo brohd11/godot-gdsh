@@ -1,3 +1,4 @@
+#! namespace GDSh class Load
 extends RefCounted
 ## Load GDSh.CommandBase scripts without editor configuration or a singleton.
 

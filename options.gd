@@ -1,4 +1,6 @@
+#! namespace GDSh class Options
 extends RefCounted
+
 const SELF = preload("res://addons/addon_lib/gdsh/options.gd")
 const Types = preload("res://addons/addon_lib/gdsh/internal/types.gd")
 const FlagType = Types.FlagType

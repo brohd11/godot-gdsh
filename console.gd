@@ -1,9 +1,10 @@
+#! namespace GDSh class Console
 extends VBoxContainer
 ## Instantiable GDSh prompt with an optional transcript.
 
 const Context = preload("res://addons/addon_lib/gdsh/context.gd")
 const Execute = preload("res://addons/addon_lib/gdsh/execute.gd")
-const ConsoleInput = preload("res://addons/addon_lib/gdsh/console_input.gd")
+const ConsoleInput = preload("res://addons/addon_lib/gdsh/internal/console_input.gd")
 const FONT_LICENSE = "res://addons/addon_lib/gdsh/internal/source_font.LICENSE.txt" #! dependency res://addons/plugin_exporter/licenses/source_font
 const SourceFont = preload("res://addons/addon_lib/gdsh/internal/source_font.tres")
 const Highlighter = preload("res://addons/addon_lib/gdsh/internal/console_highlighter.gd")

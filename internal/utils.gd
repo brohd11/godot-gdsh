@@ -1,3 +1,5 @@
+#! namespace GDSh class Utils
+
 ## Shared command helpers, exposed as GDSh.Utils. ALib copies carry a using tag
 ## identifying the source function for synchronization.
 
