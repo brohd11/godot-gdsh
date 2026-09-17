@@ -66,6 +66,32 @@ trees. A loose `manifest.gd` is skipped and may preload commands for export.
 Loading is sorted, skips invalid commands, rejects later duplicate names within a
 directory, and uses Godot's cache (no hot reload).
 
+### Directory layout
+
+```
+res://commands/              <- context.load("res://commands")
+├── greet.gd                 -> greet              loose file; a leaf command
+├── manifest.gd                                    skipped; preloads for exporters
+└── door/
+    ├── door.gd              -> door               name matches its directory
+    ├── door_util.gd                               helper; never a command
+    └── open/
+        ├── open.gd          -> door open
+        └── slowly/
+            └── slowly.gd    -> door open slowly   nesting has no depth limit
+```
+
+Only the load root turns loose `.gd` files into commands. Below it, a command
+discovers children from subdirectories alone, so neighboring `.gd` files (like
+`door_util.gd`) are free to be shared helpers. Nesting repeats one rule at every
+level: a directory contributes a command only through the `name/name.gd` file that
+matches it, and that file owns everything under it.
+
+A loose script never adopts a sibling directory of the same name — `greet.gd`
+beside `greet/` stays a leaf and `greet/`'s contents are ignored. Move it to
+`greet/greet.gd` to give an existing command subcommands. Children sort by their
+`&"priority"` command data key, then by name.
+
 Command data describes help, flags, positional counts, and `--` payloads.
 `GDSh.Options` builds routing and completion dictionaries. Setting
 `&"discoverable": false` hides a command from root completion, `help`, and `hidden`,
