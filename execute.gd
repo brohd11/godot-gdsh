@@ -50,10 +50,17 @@ static func source_file(file_path:String, parent_ctx:Context=null):
 ## command pauses is stopped (nothing after it runs when it resumes) and false is returned.
 static func run_substitution(ctx:Context, tree:Dictionary={}, text:="") -> bool:
 	ctx.data[_SUBSTITUTION_PENDING_KEY] = true
+	# The body's stdout is the substitution's value rather than screen output; its stderr still shows.
+	ctx.begin_capture(true, false)
 	_substitution_body(ctx, tree, text) # Not awaited: returns at the first pause.
-	if not ctx.data.has(_SUBSTITUTION_PENDING_KEY): return true
+	if not ctx.data.has(_SUBSTITUTION_PENDING_KEY):
+		ctx.end_capture(true, false)
+		return true
 	ctx.exit_requested = true
 	ctx.append_error("GDSh: async commands cannot run inside $(...)")
+	# The abandoned body resumes later. Leave stdout captured and capture stderr too, so nothing
+	# it writes after this point reaches the live channel of an already-failed substitution.
+	ctx.begin_capture(false, true)
 	return false
 
 static func _substitution_body(ctx:Context, tree:Dictionary, text:String):
@@ -105,10 +112,15 @@ static func _run(node:Dictionary, ctx:Context, aliases:Dictionary):
 	# Expansion/open diagnostics always remain visible on the invoking stderr.
 	var setup_errors = ctx.stderr
 	ctx.stderr = ""
+	# A routed stream becomes file data, so it must not also reach the host's live channel.
+	var capture_out = redirects.ok and redirects.stdout_route >= 0
+	var capture_err = redirects.ok and redirects.stderr_route >= 0
 	if redirects.ok:
 		if redirects.stdin_route >= 0:
 			ctx.stdin = redirects.stdin
+		ctx.begin_capture(capture_out, capture_err)
 		await _run_inner(node, ctx, aliases)
+		ctx.end_capture(capture_out, capture_err)
 	else:
 		_set_status(ctx, Types.ExitCode.FAIL)
 	var output = ctx.stdout
@@ -129,6 +141,9 @@ static func _run(node:Dictionary, ctx:Context, aliases:Dictionary):
 	_close_redirections(redirects)
 	if not write_errors.is_empty():
 		_set_status(ctx, Types.ExitCode.FAIL)
+	# Built as a local string rather than through append_error, so stream it explicitly. Capture
+	# has already ended, so a `2>` on this node cannot hide its own write failure.
+	ctx.emit_error_text(write_errors)
 	ctx.stdout = previous_out + output
 	ctx.stderr = previous_err + setup_errors + errors + write_errors
 
@@ -232,8 +247,8 @@ static func _run_inner(node:Dictionary, ctx:Context, aliases:Dictionary):
 		"subshell":
 			var child = Context.new_ctx("Subshell", ctx, true)
 			await _execute_tree(node.body, child, aliases)
-			ctx.append_output(child.stdout)
-			ctx.append_error(child.stderr)
+			ctx.absorb_output(child.stdout)
+			ctx.absorb_error(child.stderr)
 			_set_status(ctx, child.exit_code)
 
 static func _pipeline(stages:Array, ctx:Context, aliases:Dictionary):
@@ -244,8 +259,12 @@ static func _pipeline(stages:Array, ctx:Context, aliases:Dictionary):
 		var saved_output = ctx.stdout
 		ctx.stdin = input
 		ctx.stdout = ""
-		await _run(stages[i], ctx, aliases)
 		var last = i == stages.size() - 1
+		# Only the final stage reaches the host; earlier stdout becomes the next stage's stdin.
+		# stderr is never piped, so every stage keeps streaming its diagnostics live.
+		ctx.begin_capture(not last, false)
+		await _run(stages[i], ctx, aliases)
+		ctx.end_capture(not last, false)
 		# Piped output is data for the next command; only the final stage keeps display markup.
 		input = ctx.stdout if last else Context.plain_text(ctx.stdout)
 		ctx.stdin = saved_input
@@ -280,8 +299,8 @@ static func _loop(node:Dictionary, ctx:Context, aliases:Dictionary):
 		# A return in a containing function must unwind the loop too.
 		if _has_return(child): break
 		child.data.erase(_LOOP_CONTINUE_KEY)
-	ctx.append_output(child.stdout)
-	ctx.append_error(child.stderr)
+	ctx.absorb_output(child.stdout)
+	ctx.absorb_error(child.stderr)
 	_set_status(ctx, body_status)
 
 static func _has_return(ctx:Context) -> bool:
@@ -327,8 +346,8 @@ static func _simple(node:Dictionary, ctx:Context, aliases:Dictionary):
 		else:
 			command.append_error("Raw command has no execute_raw handler: " + node.words[0].raw)
 			command.exit_code = Types.ExitCode.ERR
-		ctx.append_output(command.stdout)
-		ctx.append_error(command.stderr)
+		ctx.absorb_output(command.stdout)
+		ctx.absorb_error(command.stderr)
 		_set_status(ctx, command.exit_code)
 		return
 	var expanded = Expansion.words(node.words, ctx)
@@ -339,8 +358,8 @@ static func _simple(node:Dictionary, ctx:Context, aliases:Dictionary):
 	command._token_metadata = expanded.metadata
 	command.execute = true
 	await _dispatch(command)
-	ctx.append_output(command.stdout)
-	ctx.append_error(command.stderr)
+	ctx.absorb_output(command.stdout)
+	ctx.absorb_error(command.stderr)
 	_set_status(ctx, command.exit_code)
 
 static func _dispatch(ctx:Context):
@@ -387,6 +406,6 @@ static func _call_function(name:String, ctx:Context, args:Array):
 	child.set_positional_args(name, args)
 	await _execute_tree(cached.tree, child)
 	if child.data.has(Types.RETURN_KEY): child.exit_code = child.data[Types.RETURN_KEY]
-	ctx.append_output(child.stdout)
-	ctx.append_error(child.stderr)
+	ctx.absorb_output(child.stdout)
+	ctx.absorb_error(child.stderr)
 	ctx.exit_code = child.exit_code

@@ -1,9 +1,9 @@
 # Commands and completion
 
-Commands extend `GDSh.CommandBase`, and their execution hook receives a
-`GDSh.Context`:
+Here is a command template you can copy:
 
 ```gdscript
+# res://commands/greet.gd
 extends GDSh.CommandBase
 
 static func get_command_name() -> String:
@@ -17,89 +17,80 @@ func _execute(ctx: GDSh.Context):
     return ExitCode.OK
 ```
 
-`_execute` may `await` (a signal, a frame, another coroutine). GDSh waits for it:
-`&&`, pipes, `$?`, loops and the console continue only once the command returns, and
-the console locks input meanwhile. Hosts calling `GDSh.Execute` must `await` the result
-to see such commands finish; input that never pauses still completes in the calling
-frame. `$(...)` bodies cannot wait: a command that pauses there fails the command using
-the substitution.
+Extend `GDSh.CommandBase`, provide a name and help metadata, and implement
+`_execute(ctx)` returning an exit code.
 
-## Loading and command trees
+Commands may `await`; execution and console input wait for them. Commands inside
+`$(...)`(command substituion) must finish synchronously.
+
+## Writing output
+
+| Method | Behavior |
+| --- | --- |
+| `ctx.append_output(line)` / `append_error(line)` | Append one trailing newline; ignore empty text |
+| `ctx.write_output(text)` / `write_error(text)` | Preserve text exactly, including blank and partial lines |
+
+Use these methods instead of assigning stream buffers directly. They also send
+screen-bound output to the host. Redirected streams, non-final pipeline stdout,
+and substitution stdout are captured instead. `ctx.should_stream(is_error=false)`
+reports whether a stream is screen-bound.
+
+Long-running commands can yield for live display:
 
 ```gdscript
-var context = GDSh.Context.new()
+for path in paths:
+    ctx.append_output(path)
+    await GDSh.Utils.yield_frame_if_due(ctx) # Rate limited; skips captured/unhosted output.
+```
+
+Hosts install `Callable(text:String, is_error:bool)` with `set_output_sink()`.
+The sink runs inside the command's call stack: it must not await, execute commands,
+or mutate the context. Child contexts inherit it; `push_output_sink()` and
+`pop_output_sink()` temporarily replace and restore it.
+
+## Loading and metadata
+
+```gdscript
 context.load("res://commands/greet.gd")
 context.load("res://commands")
 context.load("res://debug_commands", true) # Hidden from root completion.
 ```
 
-`load(path, hidden=false)` accepts one command `.gd` file or a directory and
-returns its scope dictionary. Relative paths resolve from `context.cwd`. Each load
-adds a layer: matching names replace earlier commands and move between visible
-and hidden scopes according to the newest load.
+Paths resolve against `context.cwd`; later loads replace matching names.
+`scopes` and `scopes_hidden` hold commands; `has_scope()` and `get_scope()` search both,
+preferring visible entries. See [Language](language.md#builtins) for builtin namespaces.
 
-`Context.scopes` contains visible commands and `Context.scopes_hidden` contains
-hidden commands. `has_scope()` and `get_scope()` search both, preferring a visible
-entry if a host inserts the same name into each. The lower-level
-`GDSh.Load.load_command()`, `load_directory()`, and `load_builtins()` helpers are
-available when direct scope construction is useful.
+Directories accept loose `.gd` files and `name/name.gd` entries. Directory-backed
+commands discover `child/child.gd` subcommands; override `_get_commands()` for custom
+trees. A loose `manifest.gd` is skipped and may preload commands for export.
+Loading is sorted, skips invalid commands, rejects later duplicate names within a
+directory, and uses Godot's cache (no hot reload).
 
-`load_builtins()` includes the `builtins` and `hidden` parents and the direct
-built-in registrations. Both `echo hello` and `builtins echo hello` work; namespaced
-calls use the bundled command even when a host overrides its top-level name.
-`builtins ` completes public built-ins, and `builtins --help` lists them.
+Command data describes help, flags, positional counts, and `--` payloads.
+`GDSh.Options` builds routing and completion dictionaries. Setting
+`&"discoverable": false` hides a command from root completion, `help`, and `hidden`,
+while keeping direct invocation and directory-child listings available.
 
-Command data may set `&"discoverable": false`. Root completion, `help`, and the
-`hidden` listing omit such commands, but they still run by name and namespace
-commands (directory children) list them. Built-in children are non-discoverable, so
-`hidden` lists `builtins` rather than every built-in; use `hidden builtins echo`.
-`hidden` routes to the context's discoverable `scopes_hidden` entries (except `__`
-internals) by registered name, including host-loaded hidden commands.
-
-Directory loading recognizes loose `.gd` files and `name/name.gd` entries. A loose
-`manifest.gd` is skipped; it may preload the directory's commands so exporters
-that follow preloads include them. A
-directory-backed command automatically discovers subcommands stored as
-`child/child.gd`; loose command files do not acquire sibling directories as
-children. Override `_get_commands()` to provide a custom command tree.
-
-Command scripts must extend `GDSh.CommandBase` and return a non-empty name. Invalid
-commands report an error and are skipped. Directory loading is sorted and rejects
-duplicate names after the first valid match. Loading uses Godot's resource cache,
-so it does not provide hot reloading.
-
-Command metadata, flags, positional counts, `--` payloads, and per-command
-`--help` use the Editor Console command format. `GDSh.Options` builds the
-dictionaries used by routing and completion. `--help` and `-h` print a command's
-help and return `OK`.
-
-A boolean flag can declare a one-letter alias, which may be grouped:
+Boolean flags can declare grouped one-letter aliases:
 
 ```gdscript
-options.add_option("--recursive", {&"short": "r", &"help": "Descend into children."})
-options.add_option("--pretty", {&"short": "p", &"help": "Indented output."})
-# `nodes -rp` is the same as `nodes --recursive --pretty`.
+options.add_option("--recursive", {&"short": "r", &"help": "Descend into children"})
+options.add_option("--pretty", {&"short": "p", &"help": "Indented output"})
+# -rp means --recursive --pretty.
 ```
 
-A short form must be one letter; value flags (`--name=`) and `h` cannot have one.
-An unquoted `-letters` word is a flag group only for commands that declare short
-flags, where an unknown letter is an error; quote a dash-leading argument (`'-x'`).
-Commands without short flags receive such words as ordinary arguments, and words
-such as `-5` are always arguments. Icons are host-provided values;
-hosts are responsible for filtering and rendering suggestions. Internal scripts
-are implementation details, with public entry points exposed through `GDSh`.
+`h` is reserved; value flags cannot have short aliases. Commands declaring short
+flags reject unknown letters in groups. Quote dash-leading arguments (`'-x'`);
+commands without short flags treat them normally. Numbers such as `-5` stay arguments.
 
 ## Completion
 
 ```gdscript
-var completion = GDSh.Completion.new("greet ", context)
+var completion = GDSh.Completion.new(input_text, context, caret_offset)
 var choices = completion.get_completions()
-
-# An optional third argument identifies the caret offset.
-var at_caret = GDSh.Completion.new(input_text, context, caret_offset)
 ```
 
-Commands can add choices by overriding `_get_completions()`:
+The caret offset is optional. Commands return a dictionary or `GDSh.Options`:
 
 ```gdscript
 func _get_completions(completion):
@@ -108,93 +99,60 @@ func _get_completions(completion):
     return options
 ```
 
-Completion uses the parser and routes through a linked context exposed as
-`completion.context`. Existing flags and arguments are processed before
-`_get_completions()` runs. Variables, aliases, functions, command scopes, and the
-working directory remain available, but command substitutions are never
-executed. The host context's variables, streams, and status are not mutated.
-
-Root completion includes visible commands and functions but not `scopes_hidden`;
-once a hidden command is entered, its command-specific completion remains
-available. The parser also supports completion inside nested commands and
-incomplete quotes, blocks, substitutions, and redirection targets. Redirection
-targets include `discard` and `/dev/null`. `_get_completions()` may return a
-dictionary or `GDSh.Options` object.
-
-Exports must include dynamically loaded `.gd` command files. See
-[Distribution and validation](distribution.md).
+`completion.context` contains processed flags and arguments plus session state.
+Completion does not execute substitutions or mutate host state. Hidden commands
+complete after being entered; incomplete syntax and redirection targets are supported.
+Hosts provide icons and render suggestions.
 
 ## Host integrations
 
-`Context.scope_resolver` is an optional `Callable(name, context)` returning a
-scope dictionary (`{"script": command_script_or_object}`) or `null`. Registered
-scopes take precedence. Execution and completion use the same resolver; it must
-be free of command execution and session mutations. Child and subshell contexts
-inherit the resolver.
+`scope_resolver: Callable(name, context)` returns `{"script": command_script_or_object}`
+or `null`. Registered scopes take precedence. Execution and completion share this
+resolver, so it must not execute commands or mutate the session.
 
-A host can opt command names into raw arguments through
-`context.raw_commands: Array[String]`, or call `context.collect_raw_commands()`
-to collect registered commands whose data declares `&"raw": true` (static data
-only; nothing is instantiated). Child contexts share the list. These names
-reserve their argument syntax at command positions; a raw command reached
-through subcommand routing reports an error instead of running. Their command
-objects implement:
+`host_data` holds services separately from command state in `data`. It is
+shallow-copied into child, subshell, and completion contexts; hosts own shared
+objects' lifetimes. Prefer weak references for UI bindings.
+
+| `host_data` key | Contract |
+| --- | --- |
+| `clear_callback` | `Callable(ctx, history:bool)` handles `clear [--history]`; may return a status |
+| `new_ctx_callback` | `Callable(ctx)` handles `new_ctx`; may return a status. Ends the submission |
+| `undo_redo` | `Callable() -> Object` supplies `UndoRedo` or a compatible object; null applies changes directly |
+| `undo_session` | `GDSh.Undo.Session` buffer; retain it when rebuilding contexts per request |
+
+The console supplies default clear/reset callbacks unless already set. Without a
+callback, those builtins fail. Record changes with `ctx.undo_action(name)`; do not
+also apply them manually. `undoredo --compound [name]` applies actions immediately,
+then `undoredo commit [name]` records one undo entry or `undoredo cancel` reverts them.
+
+### Raw commands
+
+Set `context.raw_commands: Array[String]` or call `collect_raw_commands()` to
+collect registrations with `&"raw": true`. Raw command objects implement:
 
 ```gdscript
 func execute_raw(source:String, ctx:Context) -> int:
-    # Interpret source here, only when the command is selected for execution.
     return ExitCode.OK
 
 func complete_raw(source:String, completion:Completion) -> Dictionary:
-    return {} # Never invoke execute_raw from completion.
+    return {}
 ```
 
-The raw source preserves quotes and balanced groups; GDSh does not expand its
-arguments or parse substitution bodies. Outer GDSh pipelines, conditionals,
-statement boundaries, and redirections retain their normal meaning. Raw handlers
-append output/error to their context and return an integer status. Hooks remain
-available inside functions, sourced scripts, aliases, and command substitutions.
-With no raw names configured, the language is unchanged.
-
-`host_data["clear_callback"]`: `Callable(ctx, history:bool)` handles the `clear`
-builtin (`clear [--history]`) and may return an exit status. `GDSh.Console` installs
-a default for its transcript and history unless the key is already set; without a
-callback `clear` fails with "no console is attached".
-
-`host_data["new_ctx_callback"]`: `Callable(ctx)` handles the `new_ctx` builtin and may
-return an exit status. `new_ctx` then stops the rest of the submission like `exit`.
-`GDSh.Console` installs a default that replaces its context with `context_factory.call()`
-(a bare `Context` when unset) once the submission finishes; without a callback `new_ctx`
-fails with "no console is attached".
-
-`host_data["undo_redo"]`: `Callable() -> Object` returns an `UndoRedo`, or any object
-with its `create_action`/`add_do_*`/`add_undo_*`/`commit_action(execute)` methods taking
-`(object, method, args...)`; null applies changes directly. Commands record changes with
-`ctx.undo_action(name)` (see `GDSh.Undo.Action`) and must not apply them themselves.
-`host_data["undo_session"]` is the `GDSh.Undo.Session` buffer used by the `undoredo`
-builtin: between `undoredo --compound [name]` and `undoredo commit [name]` every action
-applies immediately and the whole run is registered as one undo entry (`undoredo cancel`
-reverts it). Root contexts create one; a host that rebuilds contexts per request should
-keep its own and set it.
-
-`Context.host_data` carries host services or bindings separately from `data`'s
-per-command/control-flow state. Its dictionary is shallow-copied into child,
-subshell, and completion contexts. Prefer weak references for UI bindings to
-avoid retaining disposed controls. Hosts own the lifetime of shared objects.
-No OS interpretation or editor-class resolution is built into these hooks.
+Raw arguments preserve quotes and balanced groups without expansion or substitution
+parsing. Outer pipelines, conditionals, statement boundaries, and redirections still
+apply. Raw commands must appear at command positions; subcommand routing rejects
+them. Completion must never invoke execution. Child contexts share the raw command list.
 
 ## Utilities
 
-`GDSh.Utils.Value.convert(arg, type, base_type="")` converts console strings to a
-`Variant.Type`: bools, numbers, `StringName`, array literals, tuples such as
-`"(1, 2)"` or `"Vector2(1, 2)"`, html colors, and other `var_to_str` forms. With a
-`base_type`, int targets also accept class constants (`"SIZE_FILL"`,
-`"Control.SizeFlags.SIZE_FILL"`). It returns `null` when conversion is not possible.
+- `GDSh.Utils.Value.convert(arg, type, base_type="")` converts strings to typed
+  values, including numbers, booleans, arrays, vectors, colors, and class constants
+  for integer targets with a `base_type`. Returns `null` on failure.
+- `GDSh.Utils.Method.call_method(ctx, target, method, args, create_default_args=false,
+  object_default=Callable())` converts arguments, uses declared defaults, and calls
+  instance or static script methods. Optional generated defaults use
+  `object_default.call(class_name)` for objects. Returns `{"ok": bool, "result": Variant}`
+  and appends diagnostics to `ctx`.
 
-`GDSh.Utils.Method.call_method(ctx, target, method, args, create_default_args=false,
-object_default=Callable())` calls a method directly on `target`: a `Script` allows its
-static methods, and any other object (an instance or a node from the tree) allows its
-own. Argument types are checked and converted with `Value.convert`; missing trailing
-arguments use declared defaults, and `create_default_args` fills the rest
-(`object_default.call(class_name)` for object parameters). Errors and conversion notes
-are appended to `ctx`. It returns `{"ok": bool, "result": Variant}`.
+For exported command discovery, see [Distribution](distribution.md#exporting).

@@ -44,6 +44,18 @@ var cwd:String = "res://"
 var stdin:String
 var stdout:String
 var stderr:String
+
+## Live output channel: `Callable(text:String, is_error:bool)`, installed by a host on its
+## submission context and inherited by children through `new_ctx`. The sink runs inside the
+## running command's call stack: it must not await, execute commands, or touch this context.
+var output_sink:Callable
+## Sinks saved by a program that takes over the output view (push_output_sink/pop_output_sink).
+var _sink_stack:Array = []
+## Frames capturing a stream as data: a redirect route, a non-final pipe stage, `$(...)` stdout.
+## Output is still buffered, but not streamed, while the matching counter is above zero.
+var _capture_out:int = 0
+var _capture_err:int = 0
+
 var last_status:int = ExitCode.OK
 var exit_code:int = ExitCode.OK
 var exit_requested:=false
@@ -130,10 +142,19 @@ func tokens_empty_and_execute() -> bool:
 func tokens_empty() -> bool:
 	return unconsumed_tokens.is_empty()
 
+## A line of command output: one trailing newline, empty text ignored. Also streams the
+## appended text when a sink is installed and this stream is not being captured as data.
 func append_output(line:String) -> void:
-	if  line.is_empty():
-		return
-	stdout += line.trim_suffix("\n") + "\n"
+	_write(line, false, true)
+
+## Output appended exactly as given, preserving blank lines and partial lines.
+func write_output(text:String) -> void:
+	_write(text, false, false)
+
+## A child's buffer, appended without streaming: the child already streamed its own output,
+## so emitting again here would show it twice.
+func absorb_output(text:String) -> void:
+	_write(text, false, true, false)
 
 func strip_output_newlines():
 	stdout = stdout.lstrip("\n").rstrip("\n")
@@ -157,9 +178,79 @@ static func plain_text(text:String) -> String:
 
 
 func append_error(line:String) -> void:
-	if line.is_empty():
+	_write(line, true, true)
+
+## Errors appended exactly as given, preserving blank lines and partial lines.
+func write_error(text:String) -> void:
+	_write(text, true, false)
+
+## A child's error buffer, appended without streaming. See absorb_output.
+func absorb_error(text:String) -> void:
+	_write(text, true, true, false)
+
+
+## The single funnel for every buffer write. `normalize` applies the append_* convention
+## (exactly one trailing newline, empty text dropped); `emit` streams the appended text.
+## The streamed chunk is byte-identical to what lands in the buffer.
+func _write(text:String, is_error:bool, normalize:bool, emit:=true) -> void:
+	if text.is_empty():
 		return
-	stderr += line.trim_suffix("\n") + "\n"
+	var chunk = text
+	if normalize:
+		chunk = text.trim_suffix("\n") + "\n"
+	if is_error:
+		stderr += chunk
+	else:
+		stdout += chunk
+	if emit and should_stream(is_error):
+		output_sink.call(chunk, is_error)
+
+
+## Stream text the caller appends to a buffer itself, so it is not emitted twice
+## (see Execute._run, which builds redirection write errors as a local string).
+func emit_error_text(text:String) -> void:
+	if not text.is_empty() and should_stream(true):
+		output_sink.call(text, true)
+
+
+## Whether output written now reaches the host's live channel: a sink is installed and this
+## stream is not being captured as data by an enclosing frame.
+func should_stream(is_error:=false) -> bool:
+	if not output_sink.is_valid():
+		return false
+	if is_error:
+		return _capture_err == 0
+	return _capture_out == 0
+
+
+## Mark a stream as captured for the duration of an enclosing frame. Every begin_capture
+## needs a matching end_capture on all paths, or streaming stays off for the rest of the run.
+func begin_capture(out:bool, err:bool) -> void:
+	if out: _capture_out += 1
+	if err: _capture_err += 1
+
+
+func end_capture(out:bool, err:bool) -> void:
+	if out: _capture_out = maxi(0, _capture_out - 1)
+	if err: _capture_err = maxi(0, _capture_err - 1)
+
+
+func set_output_sink(callback:Callable) -> void:
+	output_sink = callback
+
+
+func clear_output_sink() -> void:
+	output_sink = Callable()
+
+
+## Take over the live channel, keeping the previous sink to restore later.
+func push_output_sink(callback:Callable) -> void:
+	_sink_stack.append(output_sink)
+	output_sink = callback
+
+
+func pop_output_sink() -> void:
+	output_sink = _sink_stack.pop_back() if not _sink_stack.is_empty() else Callable()
 
 func strip_error_newlines():
 	stderr = stderr.lstrip("\n").rstrip("\n")
@@ -212,6 +303,12 @@ static func new_ctx(text:String, parent:Context=null, sub_shell:=false):
 		ctx.cwd = parent.cwd
 		ctx.execute = parent.execute
 
+		# The live channel and any capture in progress: a child created inside a pipe stage,
+		# a redirect, or `$(...)` inherits the suppression that applies to its parent.
+		ctx.output_sink = parent.output_sink
+		ctx._capture_out = parent._capture_out
+		ctx._capture_err = parent._capture_err
+
 
 		ctx.variables = parent.variables.duplicate()
 		ctx.functions = parent.functions.duplicate()
@@ -227,8 +324,8 @@ static func new_ctx(text:String, parent:Context=null, sub_shell:=false):
 	return ctx
 
 func write_to_parent(parent:Context):
-	parent.append_output(stdout.trim_suffix("\n"))
-	parent.append_error(stderr.trim_suffix("\n"))
+	parent.absorb_output(stdout.trim_suffix("\n"))
+	parent.absorb_error(stderr.trim_suffix("\n"))
 	exit_code = last_status
 	parent.last_status = exit_code
 

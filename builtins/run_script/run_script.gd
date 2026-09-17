@@ -36,7 +36,9 @@ func _execute(ctx:Context):
 
 	await Execution.execute_command_multiline(file_as_string, sub_ctx)
 
-	ctx.append_output(sub_ctx.strip_output_newlines())
-	ctx.append_error(sub_ctx.strip_error_newlines())
+	# Absorb rather than append: the sub-shell streamed its own output as it ran. Trimming here
+	# instead of strip_*_newlines leaves its buffers intact, so what streamed still matches them.
+	ctx.absorb_output(sub_ctx.stdout.trim_suffix("\n"))
+	ctx.absorb_error(sub_ctx.stderr.trim_suffix("\n"))
 	ctx.exit_code = sub_ctx.exit_code
 	ctx.last_status = sub_ctx.exit_code

@@ -1,46 +1,37 @@
 # Execution and contexts
 
-Use `GDSh.Execute.execute_command_multiline()` for complete scripts. The other
-entry points accept the same language:
-
 ```gdscript
 var context = GDSh.Context.new()
-
-# Accepts parent_ctx and sub_shell options.
-var result = GDSh.Execute.execute_command("echo hello", {"parent_ctx": context})
-
-# The file must start with #!gdsh.
-GDSh.Execute.source_file("res://scripts/start.gdsh", context)
+await GDSh.Execute.execute_command_multiline("echo hello", context)
+var result = await GDSh.Execute.execute_command("echo hello", {"parent_ctx": context})
+await GDSh.Execute.source_file("res://scripts/start.gdsh", context) # Starts with #!gdsh.
 ```
 
-All three entry points return their resulting `Context`. Omitting a context
-creates a fresh session with builtins. Execution is synchronous.
+All entry points return a `Context`; omitting one creates a session with builtins.
+Use `await` to support commands that pause. Synchronous commands finish in the calling frame.
 
 ## Context state
 
-A context owns its variables, aliases, functions, command scopes, positional
-arguments, and working directory. Independent contexts have independent
-dictionaries. The default working directory is `res://`; `cwd` can also be a
-`user://` path or an absolute OS path.
+A context keeps variables, aliases, functions, command scopes, positional arguments,
+and `cwd` (initially `res://`). Paths may also use `user://` or absolute OS paths.
 
-Output accumulates in `stdout` and `stderr`, so clear those strings after the host
-consumes them. `last_status` is the last command's status and `exit_code` is the
-execution result. Status codes are `OK=0`, `FAIL=1`, and `ERR=2`; `--help`/`-h` returns `OK`.
+| Field | Meaning |
+| --- | --- |
+| `stdout`, `stderr` | Accumulated output; clear after consuming |
+| `last_status` | Last command's status (`$?`) |
+| `exit_code` | Execution result: `OK=0`, `FAIL=1`, `ERR=2` |
+| `output_sink` | Optional live output callback; see [Commands](commands.md#writing-output) |
 
-Commands may color output with BBCode (`GDSh.Utils.color_text`). Output that
-becomes data has that markup removed: a pipeline stage's output passed to the next
-command, `$(...)` captures, and redirected output. The final output returned to the
-host keeps it. Hosts that don't render BBCode can pass results through
-`GDSh.Context.plain_text()`.
+BBCode is preserved for display and stripped from pipes, substitutions, and
+redirected output. Use `GDSh.Context.plain_text()` for hosts without BBCode support.
 
-`exit N` stops the current execution context and preserves `N`; it does not quit
-the game. Create a new session or explicitly reset `exit_requested` before
-reusing a stopped context.
+`exit N` stops execution without quitting the game. Create a new context or reset
+`exit_requested` before reusing a stopped context.
 
-## Script files and scope
+## Script files
 
-Relative script paths resolve against `Context.cwd`. Quote paths containing
-spaces. `source` executes a file in the current scope. Invoking an absolute script
-path executes it in a subshell with `$0`, `$1`, `$#`, and `$@`.
+Relative paths resolve against `cwd`; quote paths containing spaces. `source` runs
+in the current scope. An absolute script invocation runs in a subshell with
+`$0`, `$1`, `$#`, and `$@`.
 
-See also [Language](language.md) and [Redirection](redirection.md).
+See [Language](language.md) and [Redirection](redirection.md) for syntax.

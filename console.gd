@@ -44,6 +44,14 @@ var _manual_prompt_text:String
 var _manual_prompt_color:=Color.WHITE
 var _font_override:Font = SourceFont
 var _reset_requested:=false
+## Live output: a running command's text reaches the transcript instead of only its result.
+var stream_output:=true
+## Chunks recorded by the sink, flushed to the transcript once per frame.
+var _pending:Array = []
+## How much of each stream the sink has already shown, so the result appends only the rest.
+var _stream_out_len:int = 0
+var _stream_err_len:int = 0
+var _stream_err_header:=false
 
 
 func _init(initial_context:Context=null) -> void:
@@ -76,6 +84,7 @@ func _init(initial_context:Context=null) -> void:
 	input.history_requested.connect(_on_history_requested)
 	prompt_row.add_child(input)
 	update_prompt()
+	set_process(false) # Only runs while a submission is streaming.
 
 
 func _ready() -> void:
@@ -172,10 +181,12 @@ func execute(text:String) -> Context:
 
 	_set_busy(true)
 	var result = Context.new_ctx("Console submission", context)
+	_stream_begin(result)
 	if execution_handler.is_valid():
 		await execution_handler.call(command, result)
 	else:
 		await Execute.execute_command_multiline(command, result)
+	_stream_end(result)
 	_set_busy(false)
 	# `new_ctx` defers the swap so the running submission never straddles two sessions.
 	if _reset_requested:
@@ -213,8 +224,97 @@ func create_output() -> RichTextLabel:
 
 
 func clear_output() -> void:
+	discard_pending_stream()
 	if output != null:
 		output.clear()
+
+
+## Drop live output that has not been shown yet, so a cleared transcript is not refilled by
+## the next flush. Hosts that clear their own transcript must call this too.
+func discard_pending_stream() -> void:
+	_pending.clear()
+	_stream_err_header = false
+
+
+## Install the live channel for one submission. Counters reset here, so a console that is not
+## streaming leaves them at zero and renders exactly as it did before.
+func _stream_begin(result:Context) -> void:
+	_pending.clear()
+	_stream_out_len = 0
+	_stream_err_len = 0
+	_stream_err_header = false
+	if not _stream_enabled():
+		return
+	result.set_output_sink(_on_stream_chunk)
+	set_process(true)
+
+
+## Final flush and teardown: covers a fully synchronous submission, and a console outside the
+## tree where `_process` never runs.
+func _stream_end(result:Context) -> void:
+	_flush_stream()
+	result.clear_output_sink()
+	set_process(false)
+
+
+## Whether this console streams. Subclasses combine it with their host's setting.
+func _stream_enabled() -> bool:
+	return stream_output
+
+
+## The sink. This runs inside the running command's call stack, so it only records: it must not
+## await, execute commands, or touch the context.
+func _on_stream_chunk(text:String, is_error:bool) -> void:
+	if is_error:
+		_stream_err_len += text.length()
+	else:
+		_stream_out_len += text.length()
+	if not _pending.is_empty() and _pending[-1][1] == is_error:
+		_pending[-1][0] += text
+	else:
+		_pending.append([text, is_error])
+
+
+func _process(_delta:float) -> void:
+	if not _pending.is_empty():
+		_flush_stream()
+
+
+func _flush_stream() -> void:
+	if _pending.is_empty():
+		return
+	var chunks = _pending
+	_pending = []
+	for chunk in chunks:
+		_stream_chunk(chunk[0], chunk[1])
+	if output != null:
+		output.scroll_to_line.call_deferred(maxi(0, output.get_line_count() - 1))
+
+
+## Render one streamed chunk. This must match `_append_result`'s rendering, or live output and
+## the trailing result would look different in the same transcript.
+func _stream_chunk(text:String, is_error:bool) -> void:
+	if output == null:
+		return
+	if not is_error:
+		output.add_text(text)
+		return
+	output.push_color(Color("ff6b6b"))
+	if not _stream_err_header:
+		_stream_err_header = true
+		output.add_text("stderr:\n")
+	output.add_text(text)
+	output.pop()
+
+
+## The part of a buffer the sink never showed: empty once streaming displayed all of it, and the
+## whole buffer when streaming was off.
+static func _stream_tail(buffer:String, streamed:int) -> String:
+	if streamed <= 0:
+		return buffer
+	if buffer.length() <= streamed:
+		return ""
+	return buffer.substr(streamed)
 
 
 func clear_history() -> void:
@@ -362,10 +462,14 @@ func _append_command(command:String) -> void:
 func _append_result(result:Context) -> void:
 	if output == null:
 		return
-	if not result.stdout.is_empty():
-		output.add_text(result.stdout)
-	if not result.stderr.is_empty():
+	var tail = _stream_tail(result.stdout, _stream_out_len)
+	var err_tail = _stream_tail(result.stderr, _stream_err_len)
+	if not tail.is_empty():
+		output.add_text(tail)
+	if not err_tail.is_empty():
 		output.push_color(Color("ff6b6b"))
-		output.add_text("stderr:\n" + result.stderr)
+		if not _stream_err_header:
+			output.add_text("stderr:\n")
+		output.add_text(err_tail)
 		output.pop()
 	output.scroll_to_line.call_deferred(maxi(0, output.get_line_count() - 1))

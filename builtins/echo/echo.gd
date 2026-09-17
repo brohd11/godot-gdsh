@@ -27,6 +27,6 @@ func _execute(ctx:Context):
 		if i < positional_args.size() - 1:
 			string += " "
 	if string.is_empty():
-		ctx.stdout += "\n"
+		ctx.write_output("\n") # Verbatim: append_output drops empty text.
 	else:
 		ctx.append_output(string)

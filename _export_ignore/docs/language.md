@@ -1,82 +1,57 @@
 # Language
 
-GDSh uses a shared lexer and recursive-descent parser for execution and
-completion. It has a compact brace grammar and is not a Bash implementation.
+GDSh supports assignments, aliases, functions, conditionals, loops, pipes,
+substitutions, and subshells with brace syntax. It is not Bash and has no OS mode.
 
 ```sh
-echo first; if [ someval == "" ]{echo yes} else {echo fail}
-f(){if true{echo nested}else{echo no}}; f
+name = player
+echo "Hello ${name}!"
+f(){if true{echo yes}else{echo no}}; f
 for item in sword shield{echo $item}
 ```
 
-A newline or `;` separates simple statements. A completed block can end a
-statement without a separator. Operators and structural braces do not require
-surrounding spaces. Ordinary arguments may contain balanced literal braces, as
-in `echo {a:1}`; quote or escape braces that would otherwise start a block.
+Newlines and `;` separate statements; completed blocks also end statements.
+Operators and structural braces need no surrounding spaces. Balanced literal
+braces are allowed in arguments (`echo {a:1}`); quote ambiguous braces.
 
-Single quotes are literal. Double quotes allow variables and `$(...)`. `${name}`
-ends a variable name explicitly, so it can join following text: `"${name}1"`.
-A `${` without a valid name and closing `}` is a syntax error. Unquoted
-substitution output splits on whitespace, while quoted output remains one
-argument. Empty quoted arguments are retained.
+## Expansion and operators
 
-## Operators and expansion
+Single quotes are literal; double quotes allow variables and `$(...)`.
+`${name}` separates a variable name from following text. Unquoted substitution
+output splits on whitespace; quoted output stays one argument, including empty strings.
+Commands inside `$(...)` cannot pause with `await`.
 
-Operator precedence, highest first:
+Precedence, highest first:
 
-1. Redirections bind to their command or compound block.
-2. `|` sends stdout to the next command; stderr remains separate.
-3. `&&` and `||` have equal precedence and evaluate left to right.
-4. `;` and newlines separate statements.
+1. Redirections.
+2. `|` (stdout only; returns the last command's status).
+3. `&&` and `||` (equal precedence, left to right).
+4. `;` and newlines.
 
-A pipeline returns its last command's status. `a || b | c && d` evaluates as
-`a || (b | c)`, followed by `&& d`. Skipped commands and branches do not expand
-variables or run substitutions. Expanded values remain argument data rather than
-becoming operators.
+Skipped commands do not expand values or run substitutions. Expanded values remain
+argument data. Variable expansion is recursive, including stored substitutions.
+Aliases are parsed as source when invoked; cycles are errors.
 
-Variable expansion is recursive, including substitutions stored in variables.
-Aliases are source fragments parsed when invoked; cycles report an error.
+Assignments accept `name=value` or `name = value`; `local` limits scope. Values
+preserve spacing and end at a statement, logical, pipeline, or redirection operator.
+Alias values can contain pipelines and logical operators; end them with `;` or a newline.
 
-Assignments accept `name=value` or `name = value`; `local` limits a variable to
-the current scope. Values preserve spacing, support quotes and substitutions,
-and end at a statement, logical, pipeline, or redirection operator. Alias values
-may contain pipelines and logical operators and must end with `;` or a newline.
+## Errors and limits
 
-## Parsing and errors
+The full submission is parsed before execution. Syntax errors, even in unused
+blocks, prevent execution and return `ERR` with a line and column. Aliases,
+externally supplied function source, and sourced files are checked when reached.
+Unsupported operators must be quoted to use them as data. `while` loops have a
+100-iteration limit.
 
-The parser builds the full command tree before execution. A function declaration
-has a name, `()`, and a parsed brace body; its body runs only when called.
-`Context.functions` stores source strings while parsed bodies are cached and
-refreshed when their source changes.
+## Builtins
 
-A syntax error anywhere prevents the complete submission from running, including
-errors in unused blocks or direct substitutions. Diagnostics include line and
-column, return `ERR`, and leave the session reusable. Aliases, externally supplied
-function source, and sourced files are checked when reached. Unsupported shell
-operators are rejected; quote operator characters intended as data.
+Builtins provide control flow, output, arithmetic, scripts, directory changes,
+and session management. They are callable directly but hidden from root completion.
 
-## Builtins and boundaries
-
-New contexts register `break`, `continue`, `return`, `exit`, `shift`, `true`,
-`false`, `[`, `expr`, `echo`, `source`, `cd`, `help`, and `clear`, plus internal
-function and script invocation commands. Builtins begin in `scopes_hidden`, keeping
-root completion focused on host-loaded commands.
-
-The hidden `builtins` parent lists the public built-ins when invoked alone. Type
-`builtins ` to complete their names, or use `builtins echo hello` to invoke one.
-Namespaced calls always use the bundled command, even when a host overrides its
-top-level name. The `hidden` parent lists discoverable hidden commands, which by
-default is the `builtins` namespace; `hidden builtins echo hello` also works.
-Direct calls such as `echo hello` remain available.
-
-`help` prints sorted `Commands` and `Hidden commands` sections and omits reserved
-internal names beginning with `__`. Use `<command> --help` for command-specific
-documentation. `GDSh.Load.load_builtins()` returns fresh scope data;
-`GDSh.Context.new("", false)` creates a context without builtins.
-
-The language supports assignments, aliases, functions, conditionals, loops,
-pipes, logical operators, substitutions, and subshells. It excludes general shell
-utilities, global-class dispatch, persistent configuration, editor method-call
-conveniences, and OS mode. `while` loops retain a 100-iteration limit.
+- `builtins` lists bundled commands; `builtins echo hello` bypasses host overrides.
+- `hidden` lists discoverable hidden commands, including `builtins`.
+- `help` lists commands; `<command> --help` or `-h` shows usage and returns `OK`.
+- `GDSh.Context.new("", false)` creates a context without builtins.
 
 See [Redirection](redirection.md) for file and stream operators.

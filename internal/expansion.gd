@@ -32,7 +32,7 @@ static func word_values(word:Dictionary, ctx:Context, completion:=false, scalar:
 					# Expansion is synchronous; the engine fails the command if the body pauses.
 					if not engine.run_substitution(child, part.get("tree", {}), part.value):
 						ctx.data[engine.SUBSTITUTION_FAILED_KEY] = true
-					ctx.append_error(child.stderr)
+					ctx.absorb_error(child.stderr) # The child streamed its own diagnostics live.
 					value = Context.plain_text(child.stdout).rstrip("\n")
 					split = not part.quoted and not scalar
 		if split:

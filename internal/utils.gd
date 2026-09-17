@@ -58,6 +58,33 @@ static func _walk_all(path:String, directories:bool, result:PackedStringArray) -
 			result.append(full_path)
 		_walk_all(full_path, directories, result)
 
+const _YIELD_DUE_KEY = "__stream_yield_due__"
+
+## Pause for a frame if `interval_msec` has passed since the last pause, so a long command's
+## output reaches the host's live channel while it still runs. Returns true when it waited.
+## Call it with `await` from inside a loop: `await GDSh.Utils.yield_frame_if_due(ctx)`.
+##
+## Gated on `ctx.should_stream()`, so it never pauses inside `$(...)`, in a non-final pipe stage,
+## under a redirection, or for a host with no sink (the MCP bridge). That keeps `$(scan foo)`
+## legal — a command that pauses inside a substitution fails it — and leaves `scan | count`
+## exactly as fast as before.
+static func yield_frame_if_due(ctx, interval_msec:=33) -> bool:
+	if ctx == null or not ctx.should_stream():
+		return false
+	var tree = Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return false
+	var now = Time.get_ticks_msec()
+	var due = ctx.data.get(_YIELD_DUE_KEY, -1)
+	if due < 0 or now < due:
+		# The first call only starts the clock, so short commands never pay for a frame.
+		if due < 0: ctx.data[_YIELD_DUE_KEY] = now + interval_msec
+		return false
+	ctx.data[_YIELD_DUE_KEY] = now + interval_msec
+	await tree.process_frame
+	return true
+
+
 ## Host hook: notify the host that commands changed files on disk, through
 ## `ctx.host_data["filesystem_changed"]: Callable()`. Without one this does nothing.
 static func filesystem_changed(ctx) -> void:
