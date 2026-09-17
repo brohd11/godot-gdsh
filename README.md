@@ -6,7 +6,11 @@ editor-only UI, or Editor Console dependency.
 
 ## Install
 
-Download the release and place the contents in the addons folder.
+Download the release and place the contents in the following location:
+```
+res://addons/addon_lib/gdsh/
+res://addons/addon_lib/gdsh_lib/ # optional libraries go here
+```
 
 You can also use [gdaddon](https://github.com/brohd11/gdaddon) to manage the addon.
 It is a TUI package/repo manager that can install and update addons for you.
