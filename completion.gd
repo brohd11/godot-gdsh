@@ -105,6 +105,7 @@ func _parse():
 		context.raw_commands = _session.raw_commands
 		context.host_data = _session.host_data.duplicate()
 		context.cwd = _session.cwd
+		context.cwn = _session.cwn
 		context.variables = _session.variables.duplicate(true)
 		context.aliases = _session.aliases.duplicate(true)
 		context.functions = _session.functions.duplicate(true)

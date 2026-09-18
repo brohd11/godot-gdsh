@@ -23,9 +23,13 @@ const BUILTIN_SCRIPTS = [
 	preload("res://addons/addon_lib/gdsh/builtins/echo/echo.gd"),
 	preload("res://addons/addon_lib/gdsh/builtins/source/source.gd"),
 	preload("res://addons/addon_lib/gdsh/builtins/cd/cd.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/cn/cn.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/node/node.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/script/script.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/ambiguous/ambiguous.gd"),
 	preload("res://addons/addon_lib/gdsh/builtins/help/help.gd"),
 	preload("res://addons/addon_lib/gdsh/builtins/function/function.gd"),
-	preload("res://addons/addon_lib/gdsh/builtins/run_script/run_script.gd"),
+	preload("res://addons/addon_lib/gdsh/builtins/gdsh/gdsh.gd"),
 	preload("res://addons/addon_lib/gdsh/builtins/undoredo/undoredo.gd"),
 ]
 

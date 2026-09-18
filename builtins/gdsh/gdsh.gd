@@ -2,37 +2,49 @@ extends "res://addons/addon_lib/gdsh/command_base.gd"
 
 
 const _HELP = \
-"Built in command to run a script in a subprocess."
+"Run a .gdsh script in a subshell, with its own $0, $1 and $#.
+Session state does not leak back out; use `source` to run a script in the current scope.
+Usage:
+  gdsh <path.gdsh> [args...]
+  <path.gdsh> [args...]      the same, with the path in command position"
 
 var script_path:String
 
 static func get_command_name():
-	return "__run_script__"
+	return "gdsh"
 
 static func get_self_command_data():
 	return _command_data({
 		&"help": _HELP,
-		&"positional_count": "min:0"
+		&"positional_count": "min:0",
 	})
 
+## Entered explicitly as `gdsh <path>`, or with the path itself in command position.
 func _consume_self(ctx:Context) -> ExitCode:
-	script_path = _complete_path(Utils.unquote(_consume_token(ctx)), ctx.cwd)
+	var token = _consume_token(ctx)
+	if token == get_command_name():
+		# Nothing to run: fall through to _execute, which prints help.
+		if ctx.tokens_empty():
+			return ExitCode.OK
+		token = _consume_token(ctx)
+	script_path = _complete_path(Utils.unquote(token), ctx.cwd)
 	return ExitCode.OK
 
 func _execute(ctx:Context):
+	if script_path.is_empty():
+		ctx.append_output(get_help_string(true))
+		return ExitCode.OK
+	# The extension is the only gate: a .gdsh file needs no #!gdsh tag.
+	if script_path.get_extension().to_lower() != "gdsh":
+		ctx.append_error("Not a .gdsh script: " + script_path)
+		return ExitCode.FAIL
 	if not FileAccess.file_exists(script_path):
 		ctx.append_error("File doesn't exist: " + script_path)
-		ctx.exit_code = ExitCode.FAIL
-		return
+		return ExitCode.FAIL
 	var file_as_string = FileAccess.get_file_as_string(script_path)
-	if not file_as_string.strip_edges(true, false).begins_with("#!gdsh"):
-		ctx.append_error("File does not have #!gdsh tag: " + script_path)
-		ctx.exit_code = ExitCode.FAIL
-		return
 
 	var sub_ctx = Context.new_ctx(script_path.get_file() + "-SubShell", ctx, true)
 	sub_ctx.set_positional_args(script_path, positional_args)
-
 
 	await Execution.execute_command_multiline(file_as_string, sub_ctx)
 

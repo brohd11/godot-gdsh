@@ -4,6 +4,8 @@ extends RefCounted
 const Context = preload("res://addons/addon_lib/gdsh/context.gd")
 const Types = preload("res://addons/addon_lib/gdsh/internal/types.gd")
 const Undo = preload("res://addons/addon_lib/gdsh/undo.gd")
+const Utils = preload("res://addons/addon_lib/gdsh/internal/utils.gd")
+const NodePaths = preload("res://addons/addon_lib/gdsh/internal/node_paths.gd")
 const ExitCode = Types.ExitCode
 static var _clean_output_regex:RegEx
 
@@ -40,6 +42,9 @@ var scopes := {}
 var scopes_hidden := {}
 
 var cwd:String = "res://"
+## Current working node, as an absolute node path: the base for relative node paths, as cwd is
+## for relative file paths. Held as a path and resolved on use, so a freed node cannot dangle.
+var cwn:String = "/root"
 
 var stdin:String
 var stdout:String
@@ -100,6 +105,16 @@ func has_scope(name:String) -> bool:
 
 
 func get_scope(name:String):
+	var registered = get_registered_scope(name)
+	if registered != null:
+		return registered
+	return _resolve_bare(name)
+
+
+## Scopes a host actually registered, without bare target resolution. Syntax highlighting uses
+## this so a global class, node path or script path is not coloured as though someone had
+## registered a command by that name.
+func get_registered_scope(name:String):
 	if scopes.has(name):
 		return scopes[name]
 	if scopes_hidden.has(name):
@@ -107,6 +122,44 @@ func get_scope(name:String):
 	if scope_resolver.is_valid():
 		return scope_resolver.call(name, self)
 	return null
+
+
+## A bare target in command position: a .gdsh script, a .gd script, a global class, or a node.
+## Returns the scope of the command that handles it, so core owns the policy while the commands
+## stay replaceable and an unregistered one simply does not resolve.
+## Runs for every unrecognized name, every completion keystroke and every highlighted word, so it
+## must stay cheap and side-effect free.
+func _resolve_bare(name:String):
+	if name.is_empty():
+		return null
+	match name.get_extension().to_lower():
+		"gdsh": return _bare_scope("gdsh")
+		"gd": return _bare_scope("script")
+	# A class name never contains a slash, so a slashed token is a path, not a class.
+	if name.contains("/"):
+		return _bare_scope("node") if _bare_node(name) != null else null
+	# The head before the first '.' decides: neither node names nor class names contain one.
+	var head = name.get_slice(".", 0)
+	var is_class = Utils.global_class_paths().has(head)
+	var is_node = _bare_node(head) != null
+	if is_class and is_node:
+		return _bare_scope("__ambiguous__")
+	if is_class:
+		return _bare_scope("script")
+	if is_node:
+		return _bare_scope("node")
+	return null
+
+
+## Look the handler up directly rather than through get_scope, which would recurse.
+func _bare_scope(command_name:String):
+	if scopes.has(command_name):
+		return scopes[command_name]
+	return scopes_hidden.get(command_name)
+
+
+func _bare_node(path:String) -> Node:
+	return NodePaths.resolve(path.get_slice(".", 0), cwn)
 
 
 ## Set raw_commands to the registered names whose command data declares `raw`.
@@ -301,6 +354,7 @@ static func new_ctx(text:String, parent:Context=null, sub_shell:=false):
 		ctx.raw_commands = parent.raw_commands # Host configuration, shared rather than copied.
 		ctx.host_data = parent.host_data.duplicate()
 		ctx.cwd = parent.cwd
+		ctx.cwn = parent.cwn
 		ctx.execute = parent.execute
 
 		# The live channel and any capture in progress: a child created inside a pipe stage,

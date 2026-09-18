@@ -140,3 +140,23 @@ static func get_all_global_class_paths():
 		var path = dict.get("path", "")
 		class_dict[name] = path
 	return class_dict
+
+
+static var _global_class_paths:Dictionary = {}
+static var _global_class_paths_built:bool = false
+
+## Cached global class name -> script path. Bare-name resolution runs for every unrecognized
+## command, every completion keystroke and every highlighted word, so rebuilding the dictionary
+## each time is not viable. Built from ProjectSettings, so it is correct at runtime too.
+static func global_class_paths() -> Dictionary:
+	if not _global_class_paths_built:
+		_global_class_paths = get_all_global_class_paths()
+		_global_class_paths_built = true
+	return _global_class_paths
+
+
+## Drop the cache after scripts change. The editor host calls this on filesystem_changed;
+## without a host nothing invalidates it, which is correct for a running game.
+static func clear_global_class_cache() -> void:
+	_global_class_paths = {}
+	_global_class_paths_built = false

@@ -367,9 +367,9 @@ static func _dispatch(ctx:Context):
 	if ctx.functions.has(name):
 		name = Types.FUNCTION_KEY
 	elif not ctx.has_scope(name):
-		if name.is_absolute_path():
-			name = "__run_script__"
-		elif ctx.unconsumed_tokens.has("==") or ctx.unconsumed_tokens.has("!="):
+		# An absolute path used to mean "run this script"; Context._resolve_bare now classifies
+		# paths by extension, so a .gdsh token reaches the gdsh command through get_scope.
+		if ctx.unconsumed_tokens.has("==") or ctx.unconsumed_tokens.has("!="):
 			ctx.unconsumed_tokens.push_front("[")
 			ctx.unconsumed_tokens.push_back("]")
 			ctx._token_metadata.push_front({})

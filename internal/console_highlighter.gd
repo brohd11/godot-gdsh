@@ -149,7 +149,7 @@ func _color_name(token:Dictionary, globals:Dictionary) -> void:
 		_paint(token.start, token.end, palette.symbol)
 	elif context != null and context.functions.has(name):
 		_paint(token.start, token.end, palette.function_def)
-	elif context != null and context.has_scope(name):
+	elif context != null and context.get_registered_scope(name) != null:
 		_paint(token.start, token.end, palette.scope)
 	elif context != null and context.aliases.has(name):
 		_paint(token.start, token.end, palette.alias)
