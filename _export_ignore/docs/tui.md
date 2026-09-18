@@ -10,6 +10,10 @@ The base handles session acquisition, input capture, redraws, and cleanup. The p
 and transcript return when the command calls `quit()`. Drawing does not enter stdout;
 use `context.append_output()` only for results that should remain after the TUI exits.
 
+For reusable lists, text entries, confirmations, and retained screen navigation, see
+[GDSh TUI components](https://github.com/brohd11/godot-gdsh-lib-tui.git). That optional library builds on
+this base API; the example below shows how to build directly on it.
+
 ## A selectable list
 
 Save this example as `res://commands/choose_item.gd`. It displays 100 items, highlights
