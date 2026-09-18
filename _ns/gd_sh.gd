@@ -9,6 +9,7 @@ const Context = preload("uid://dlf6o3kxnojob") # res://addons/addon_lib/gdsh/con
 const Execute = preload("uid://bv7etgrqr2yur") # res://addons/addon_lib/gdsh/execute.gd
 const Load = preload("uid://c8so1oy2s8c5o") # res://addons/addon_lib/gdsh/load.gd
 const Options = preload("uid://cwho2drs24ri8") # res://addons/addon_lib/gdsh/options.gd
+const TerminalConsole = preload("res://addons/addon_lib/gdsh/terminal_console.gd")
 const TUICommand = preload("uid://cctfsikg377e8") # res://addons/addon_lib/gdsh/tui_command.gd
 const TUIMsg = preload("uid://wqr75vju565w") # res://addons/addon_lib/gdsh/tui_msg.gd
 const Undo = preload("uid://dyby1siu7c6xs") # res://addons/addon_lib/gdsh/undo.gd

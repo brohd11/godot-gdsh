@@ -99,3 +99,6 @@ func _execute(ctx: GDSh.Context):
 - [Redirection](_export_ignore/docs/redirection.md)
 - [Commands and completion](_export_ignore/docs/commands.md)
 - [Distribution and validation](_export_ignore/docs/distribution.md)
+
+The optional [terminal-style console](_export_ignore/docs/terminal_console.md)
+combines scrollback, prompt, and editable command display in one RichTextLabel.

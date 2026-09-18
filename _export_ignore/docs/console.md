@@ -2,6 +2,8 @@
 
 `GDSh.Console` is a `VBoxContainer` with a one-line prompt, history, completion,
 and optional transcript.
+For an inline prompt in a selectable rich-text transcript, see
+[Terminal console](terminal_console.md).
 
 ```gdscript
 var console = GDSh.Console.new() # Optionally pass an existing context.
@@ -11,7 +13,7 @@ console.create_output()
 ```
 
 Enter submits, Tab completes, and Up/Down browse history. Pasted newlines become
-spaces. Focused input consumes keyboard events; the transcript consumes scrolling.
+`; `. Focused input consumes keyboard events; the transcript consumes scrolling.
 
 ## Execution and output
 
