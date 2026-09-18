@@ -7,6 +7,7 @@ const Completion = preload("res://addons/addon_lib/gdsh/completion.gd")
 const Execution = preload("res://addons/addon_lib/gdsh/execute.gd")
 const Options = preload("res://addons/addon_lib/gdsh/options.gd")
 const Paths = preload("res://addons/addon_lib/gdsh/internal/paths.gd")
+const PathCompletion = preload("res://addons/addon_lib/gdsh/internal/path_completion.gd")
 const Utils = preload("res://addons/addon_lib/gdsh/internal/utils.gd")
 const PRINT_DEBUG = Types.PRINT_DEBUG
 const _UNAMED = "UnamedCommand"
@@ -255,6 +256,7 @@ func _get_completion_std_w_context(completion:Completion, commands:=true, flags:
 	var _do_com:=false
 	var _do_flag:=false
 	var _do_path:=false
+	var path = positional_args.back() if not positional_args.is_empty() else ""
 	if completion.char_before_cursor == "" or completion.char_before_cursor == " ":
 		_do_flag = true
 		_do_com = true
@@ -264,15 +266,12 @@ func _get_completion_std_w_context(completion:Completion, commands:=true, flags:
 		_do_com = true
 		_do_flag = true
 		for s in ["/", "../", "./"]:
-			if completion.token_before_cursor.begins_with(s):
+			if path.begins_with(s):
 				_do_path = true
 				break
 
 	if allow_pos_paths and _do_path:
-		var for_path_completion = ""
-
-		for_path_completion = completion.token_before_cursor # temp test
-		options.merge(_completion_rel_path(completion.context, for_path_completion))
+		options.merge(PathCompletion.files(path, completion.context.cwd, completion.token_before_cursor))
 	else:
 		if _do_com and commands:
 			options.merge(get_commands(true))

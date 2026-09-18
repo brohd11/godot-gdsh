@@ -9,6 +9,8 @@ const Options = preload("res://addons/addon_lib/gdsh/options.gd")
 const Types = preload("res://addons/addon_lib/gdsh/internal/types.gd")
 const Utils = preload("res://addons/addon_lib/gdsh/internal/utils.gd")
 const NodePaths = preload("res://addons/addon_lib/gdsh/internal/node_paths.gd")
+const PathCompletion = preload("res://addons/addon_lib/gdsh/internal/path_completion.gd")
+const TargetUtil = preload("res://addons/addon_lib/gdsh/internal/target_util.gd")
 
 var raw_text:String
 var caret_col:int
@@ -53,6 +55,12 @@ func get_completions() -> Dictionary:
 
 	var first_word = context.unconsumed_tokens.front() if not context.unconsumed_tokens.is_empty() else ""
 	var scope = context.get_scope(first_word)
+	var typing_command = raw_argument_start < 0 and context.unconsumed_tokens.size() == 1 and not char_before_cursor in [" ", "\t", "\n", ""] and not context.functions.has(first_word)
+	if typing_command and (first_word.begins_with("./") or first_word.begins_with("../")):
+		# Relative filesystem paths and node paths overlap. Keep script member access
+		# and registered commands with their own completion handlers.
+		if not TargetUtil.parse_script_target(first_word).has_members and context.get_registered_scope(first_word) == null:
+			return _relative_path_completions(first_word) if show_commands else {}
 	if scope == null:
 		if show_commands:
 			for name:String in context.scopes:
@@ -60,9 +68,9 @@ func get_completions() -> Dictionary:
 					options.add_option(name)
 			for name in context.functions:
 				options.add_option(name + "[func]", {&"insert": name})
-			# Incomplete node names need suggestions before execution can resolve them.
-			# Restrict this to the command word; arguments keep their command's completion.
-			if context._bare_scope("node") != null and context.unconsumed_tokens.size() == 1 and not char_before_cursor in [" ", "\t", "\n", ""] and not context.functions.has(first_word):
+			# Bare node completion starts after a named parent and slash, never at
+			# an initial node name. Incomplete children need not resolve yet.
+			if typing_command and first_word.rfind("/") > 0 and context._bare_scope("node") != null:
 				options.merge(NodePaths.complete_path(first_word, context.cwn, token_before_cursor))
 		return options.get_options()
 	if context.functions.has(first_word):
@@ -102,6 +110,27 @@ func get_completions() -> Dictionary:
 		elif not show_flags:
 			output.erase(name)
 	return output
+
+
+func _relative_path_completions(path:String) -> Dictionary:
+	var options = Options.new()
+	options.set_options(PathCompletion.files(path, context.cwd, token_before_cursor))
+	if context._bare_scope("node") != null:
+		var nodes = NodePaths.complete_path(path, context.cwn, token_before_cursor)
+		nodes.erase(Options.Keys.COMMAND_META)
+		if not nodes.is_empty():
+			options.add_separator("Nodes")
+			var choices = options.get_options()
+			for name in nodes:
+				# A directory and a node may share a name. Keep both groups intact.
+				var label = name
+				if choices.has(label):
+					label = str(name) + " [node]"
+					while choices.has(label):
+						label += " [node]"
+				choices[label] = nodes[name]
+	return options.get_options()
+
 
 func _parse():
 	context = Context.new("", false)

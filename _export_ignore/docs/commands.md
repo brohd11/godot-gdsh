@@ -180,9 +180,12 @@ Without a subcommand, a node prints its absolute path, suitable for `tree inspec
 `node ./Child` and `node ..` use normal node-path traversal. `pwn` prints the stored
 working-node path, even if that node has disappeared; it does not resolve or change it.
 
-Node paths complete segment by segment in `cn Parent/`, `node Parent/`, and directly
-in command position (`Parent/`). Partial names, absolute paths from `/root`, `./`,
-and `../` are supported. `cn` hides internal children by default; use
+`cn ` and `node ` offer nodes immediately. In command position, node suggestions
+start after the first named node and slash (`Parent/` or `/root/`), including
+partial child names. Bare `./` and `../` show files and directories first, followed
+by a Nodes separator and node paths. A shared name appears in both groups, with
+`[node]` on the node label. Use `node ./` for nodes or `realpath ./` for files and
+directories only. `cn` hides internal children by default; use
 `cn --internal Parent/` (or `cn -i Parent/`) to include them in completion.
 Explicit internal paths still resolve without the flag. `node` and bare node-path
 completion include internal children. Completion quotes names containing spaces.

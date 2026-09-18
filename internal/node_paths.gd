@@ -7,6 +7,7 @@ extends RefCounted
 ## a host that knows better sets `cwn` itself.
 const DEFAULT_CWN = "/root"
 const Options = preload("res://addons/addon_lib/gdsh/options.gd")
+const PathCompletion = preload("res://addons/addon_lib/gdsh/internal/path_completion.gd")
 
 
 ## The SceneTree root, or null when there is no SceneTree.
@@ -62,34 +63,13 @@ static func complete_path(path:String, cwn:String=DEFAULT_CWN, raw_word:String="
 	if insert_base == "/":
 		var tree_root = root()
 		if tree_root != null:
-			_add_path_option(options, str(tree_root.name), insert_base, raw_word)
+			PathCompletion.add_path_option(options, str(tree_root.name), insert_base, raw_word)
 		return options.get_options()
 	var base = cwn_node(cwn) if insert_base.is_empty() else resolve(insert_base, cwn)
 	if base == null:
 		return options.get_options()
 	if base.get_parent() != null:
-		_add_path_option(options, "..", insert_base, raw_word)
+		PathCompletion.add_path_option(options, "..", insert_base, raw_word)
 	for child in base.get_children(include_internal):
-		_add_path_option(options, str(child.name), insert_base, raw_word)
+		PathCompletion.add_path_option(options, str(child.name), insert_base, raw_word)
 	return options.get_options()
-
-
-static func _add_path_option(options:Options, name:String, prefix:String, raw_word:String) -> void:
-	var insertion = prefix + name
-	var quote = raw_word.left(1) if raw_word.left(1) in ["'", '"'] else ""
-	if quote.is_empty():
-		for character in insertion:
-			if character in " \t\r\n$'\";|&()<>#\\":
-				quote = '"'
-				break
-	# The slash belongs inside the quotes so accepting again keeps a single path argument.
-	var trailing = "/"
-	if not quote.is_empty():
-		insertion += "/"
-		if quote == '"':
-			insertion = insertion.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
-		elif insertion.contains("'"):
-			insertion = insertion.replace("'", "'\\''")
-		insertion = quote + insertion + quote
-		trailing = ""
-	options.add_option(name, {&"insert": insertion, &"trailing_char": trailing})

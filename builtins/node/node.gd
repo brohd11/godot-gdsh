@@ -74,6 +74,8 @@ func _get_commands() -> Dictionary:
 func _get_completions(completion:Completion) -> Dictionary:
 	var has_space = completion.char_before_cursor in [" ", "\t", "\n", ""]
 	if not requested.is_empty() and positional_args.is_empty() and payload.is_empty() and not has_space and consumed_tokens.back() == requested:
+		if consumed_tokens.front() != get_command_name() and requested.rfind("/") <= 0:
+			return {}
 		return NodePaths.complete_path(requested, completion.context.cwn, completion.token_before_cursor)
 	var choices:Dictionary = super(completion)
 	if requested.is_empty() and positional_args.is_empty() and payload.is_empty() and has_space:
