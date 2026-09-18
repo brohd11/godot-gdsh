@@ -1,4 +1,3 @@
-#! namespace GDSh class NodePaths
 extends RefCounted
 ## Shared SceneTree lookup for command-position node targets, the `cwn` working node and
 ## optional command packs such as gdsh_lib/tree. Callers own their input policy and diagnostics.
