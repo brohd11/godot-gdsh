@@ -102,3 +102,11 @@ func _execute(ctx: GDSh.Context):
 
 The optional [terminal-style console](_export_ignore/docs/terminal_console.md)
 combines scrollback, prompt, and editable command display in one RichTextLabel.
+
+## Package layout
+
+`_ns/` contains the stable `GDSh` namespace. Implementation lives under `src/`:
+`core/` for execution, language, completion data and builtins; `ui/` for consoles,
+input, highlighting and font assets; and `tui/` for command/session protocols.
+`_export_ignore/` contains documentation and export tooling. Distribute the whole
+package, including UID sidecars; callers should prefer `GDSh.*` over source paths.

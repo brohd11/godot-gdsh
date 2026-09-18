@@ -6,6 +6,11 @@ highlighter for `.gdsh` files.
 
 ## Exporting
 
+The package export configuration keeps the public `GDSh` namespace in `_ns/`
+and implementation in `src/`, preserving the source layout. GDSh is excluded
+from global-class renaming; dependencies may still be bundled under `src/remote/`.
+
+
 Include dynamically loaded command scripts and `.gdsh` files. For example,
 export all resources and add `*.gdsh` to the non-resource include filter.
 Command discovery supports exported `.gd` remaps.

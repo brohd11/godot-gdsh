@@ -64,7 +64,7 @@ console.prompt_formatter = func(ctx):
 A formatter replaces a fixed prompt. Call `update_prompt()` after external changes.
 Style the public `prompt_label`, `input`, `prompt_row`, and `output` controls.
 `add_font_override(font)` and `remove_font_override()` change their shared font.
-The bundled JetBrains Mono font uses the [SIL Open Font License](../../internal/source_font.LICENSE.txt).
+The bundled JetBrains Mono font uses the [SIL Open Font License](../../src/ui/assets/source_font.LICENSE.txt).
 
 ## Highlighting
 
