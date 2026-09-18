@@ -162,9 +162,9 @@ func _on_gui_input(event:InputEvent) -> void:
 		delete_word_before_caret()
 		accept_event()
 		return
-	if event.echo:
-		return
 	var popup_visible = _popup != null and _popup.visible
+	if event.echo and not (popup_visible and event.keycode in [KEY_UP, KEY_DOWN]):
+		return
 	match event.keycode:
 		KEY_LEFT, KEY_RIGHT:
 			if popup_visible: # The caret still moves.
@@ -299,6 +299,7 @@ class CompletionPopup extends ScrollContainer:
 		size = custom_minimum_size
 		show()
 		modulate.a = 1.0
+		_scroll_to_selection_after_layout(generation)
 		return true
 
 
@@ -342,8 +343,30 @@ class CompletionPopup extends ScrollContainer:
 			index = posmod(index + offset, _items.item_count)
 			if not _items.is_item_disabled(index):
 				_items.select(index)
-				_items.ensure_current_is_visible()
+				_scroll_to_selection()
 				return
+
+
+	func _scroll_to_selection_after_layout(generation:int) -> void:
+		await get_tree().process_frame
+		if generation == _generation:
+			_scroll_to_selection()
+
+
+	func _scroll_to_selection() -> void:
+		if not visible or not has_selection():
+			return
+		# The auto-height ItemList fills the content; the outer container scrolls it.
+		# Its row bounds already include the list panel's margin and share the
+		# container's unscrolled content origin, independent of pending layout.
+		var row = _items.get_item_rect(_items.get_selected_items()[0])
+		var bar = get_v_scroll_bar()
+		var target = float(scroll_vertical)
+		if row.position.y < target or row.size.y > bar.page:
+			target = floorf(row.position.y)
+		elif row.end.y > target + bar.page:
+			target = ceilf(row.end.y - bar.page)
+		scroll_vertical = int(clampf(target, bar.min_value, maxf(bar.min_value, bar.max_value - bar.page)))
 
 
 	func _on_item_activated(index:int) -> void:
