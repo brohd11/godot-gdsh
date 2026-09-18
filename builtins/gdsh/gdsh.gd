@@ -24,7 +24,7 @@ func _consume_self(ctx:Context) -> ExitCode:
 	var token = _consume_token(ctx)
 	if token == get_command_name():
 		# Nothing to run: fall through to _execute, which prints help.
-		if ctx.tokens_empty():
+		if ctx.tokens_empty() or ctx.unconsumed_tokens.front().begins_with("-"):
 			return ExitCode.OK
 		token = _consume_token(ctx)
 	script_path = _complete_path(Utils.unquote(token), ctx.cwd)

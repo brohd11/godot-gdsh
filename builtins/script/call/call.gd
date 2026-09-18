@@ -1,10 +1,12 @@
 extends "res://addons/addon_lib/gdsh/command_base.gd"
 
-const ScriptUtil = preload("res://addons/addon_lib/gdsh/builtins/script/script_util.gd")
+const TargetUtil = preload("res://addons/addon_lib/gdsh/internal/target_util.gd")
 
 const _RESULTS_TO_SKIP = ["GDScriptFunctionState"]
 
 var show_private:=false
+var inherited:=false
+var engine:=false
 var create_default:= false
 
 static func get_command_name() -> String:
@@ -12,8 +14,8 @@ static func get_command_name() -> String:
 
 static func get_self_command_data() -> Dictionary:
 	return _command_data({
-		&"help": ScriptUtil.get_usage_string(
-			"Call a static function in the target script",
+		&"help": TargetUtil.get_usage_string(
+			"Call a static script method or a method on a live node",
 			"call <options> <method> -- <...args>"
 		),
 		&"positional_count": 1,
@@ -27,11 +29,17 @@ func _get_flags():
 	options.add_option("--default", {
 		&"help": "Create default value arguments when calling the method."
 	})
+	options.add_option("--inherited", {&"help": "Include methods from base scripts."})
+	options.add_option("--engine", {&"help": "Include base scripts and engine methods."})
 	return options.get_options()
 
 func _process_flag(flag:String):
 	if flag == "--private":
 		show_private = true
+	elif flag == "--inherited":
+		inherited = true
+	elif flag == "--engine":
+		engine = true
 	elif flag == "--default":
 		create_default = true
 
@@ -42,40 +50,36 @@ func _get_completions(ctx:Completion):
 		return dict
 	if not _positional_arg_index_valid():
 		return {}
-	if not is_instance_valid(ScriptUtil.get_script_from_ctx(ctx.context)):
+	if not is_instance_valid(TargetUtil.get_target(ctx.context)):
 		return {}
 
 	var flags = get_flags(true)
-	var methods = ScriptUtil.get_methods_from_ctx(ctx.context, show_private, true)
+	var methods = TargetUtil.get_methods_from_ctx(ctx.context, show_private, true, inherited, engine)
 	if not ctx.context.unconsumed_tokens.is_empty():
 		var current_name = ctx.context.unconsumed_tokens.pop_front()
 		if current_name in methods:
 			return {}
 	for m in methods.keys():
 		var meta = methods[m].get_or_add(Options.Keys.METADATA, {})
-		if meta.get(Options.Keys.ARG_COUNT, 0) > 0:
+		if meta.get(Options.Keys.ARG_COUNT, 0) != 0:
 			meta[Options.Keys.ADD_ARGS] = true
 	methods.merge(flags)
 	return methods
 
 func _execute(ctx:Context):
 	var method_name = positional_args[0]
-	var script = ScriptUtil.get_script_from_ctx(ctx)
+	var script = TargetUtil.get_target(ctx)
 	if not is_instance_valid(script):
-		ctx.append_error("Could not get script.")
+		ctx.append_error("Could not get target.")
 		return ExitCode.FAIL
 
-	var methods = ScriptUtil.get_methods_from_ctx(ctx, show_private, true)
+	var methods = TargetUtil.get_methods_from_ctx(ctx, show_private, true, inherited, engine)
 	if not method_name in methods:
 		ctx.append_error("Unrecognized method: " + method_name)
 		return ExitCode.FAIL
 	return call_method(ctx, script, method_name)
 
 func call_method(ctx:Context, script, method_name:String):
-	if not script.has_method(method_name):
-		ctx.append_error("Static method '%s' not in script." % method_name)
-		return ExitCode.ERR
-
 	# Host hooks, both optional: argument substitution (console $VARs) and a stand-in object for
 	# Object parameters when --default fills them in.
 	var args = payload.duplicate()

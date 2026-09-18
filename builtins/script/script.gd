@@ -1,6 +1,6 @@
 extends "res://addons/addon_lib/gdsh/command_base.gd"
 
-const ScriptUtil = preload("res://addons/addon_lib/gdsh/builtins/script/script_util.gd")
+const TargetUtil = preload("res://addons/addon_lib/gdsh/internal/target_util.gd")
 const URString = UtilR.Strings.URString
 const URClassDetail = UtilR.Objects.URClassDetail
 
@@ -60,12 +60,13 @@ func _consume_self(ctx:Context) -> ExitCode:
 	script_access_path = token
 	if ctx.stdin != "":
 		script_access_path = ctx.stdin.strip_edges()
-	ctx.data["script"] = ScriptUtil.resolve_access_path(script_access_path, ctx)
+	ctx.data.erase("node")
+	ctx.data["script"] = TargetUtil.resolve_access_path(script_access_path, ctx)
 	return ExitCode.OK
 
 func _set_script_access_path(new_path:String):
 	script_access_path = new_path
-	_ctx_obj.data["script"] = ScriptUtil.resolve_access_path(script_access_path, _ctx_obj)
+	_ctx_obj.data["script"] = TargetUtil.resolve_access_path(script_access_path, _ctx_obj)
 
 func _get_help(what:String):
 	if script_access_path != "" and script_access_path != get_command_name():
@@ -94,12 +95,12 @@ func _get_completions(ctx:Completion):
 static func get_completion_static(ctx:Completion, target_access_path):
 	var options = Options.new()
 	var cursor_on_access = ctx.token_before_cursor == target_access_path and ctx.char_before_cursor != " "
-	var target_script = ScriptUtil.get_script_from_ctx(ctx.context)
+	var target_script = TargetUtil.get_script_from_ctx(ctx.context)
 	if not is_instance_valid(target_script):
 		if not cursor_on_access:
 			return {}
 		var access_path = URString.trim_member_access_back(target_access_path)
-		target_script = ScriptUtil.resolve_access_path(access_path, ctx.context)
+		target_script = TargetUtil.resolve_access_path(access_path, ctx.context)
 	if not is_instance_valid(target_script):
 		return {}
 	if not cursor_on_access:
@@ -110,8 +111,11 @@ static func get_completion_static(ctx:Completion, target_access_path):
 
 func _execute(ctx:Context):
 	if text_flag:
-		var script = ScriptUtil.get_script_from_ctx(ctx)
+		var script = TargetUtil.get_script_from_ctx(ctx)
 		if is_instance_valid(script):
+			if not script.has_source_code():
+				ctx.append_error("Script source is unavailable (for example, in a binary export).")
+				return ExitCode.FAIL
 			ctx.write_output(script.source_code)
 		else:
 			ctx.append_error("Could not get script: " + script_access_path)

@@ -1,14 +1,15 @@
 extends "res://addons/addon_lib/gdsh/command_base.gd"
 
-const ScriptUtil = preload("res://addons/addon_lib/gdsh/builtins/script/script_util.gd")
+const TargetUtil = preload("res://addons/addon_lib/gdsh/internal/target_util.gd")
 
-const URClassDetail = UtilR.Objects.URClassDetail
 const PrintRich = UtilR.Strings.PrintRich
 
 const _TYPE_COLOR = Color("4d819a")
 const _UNTYPED_COLOR = Color("cc000c")
 
 var show_private:=false
+var inherited:=false
+var engine:=false
 
 
 static func get_command_name() -> String:
@@ -17,8 +18,8 @@ static func get_command_name() -> String:
 
 static func get_self_command_data() -> Dictionary:
 	return _command_data({
-		&"help": ScriptUtil.get_usage_string(
-			"List the arguments of a method in the target script",
+		&"help": TargetUtil.get_usage_string(
+			"List the arguments of a method on the target script or node",
 			"args <options> <method_name>"
 		),
 		&"positional_count": 1,
@@ -30,19 +31,25 @@ func _get_flags():
 	options.add_option("--private", {
 		&"help": "Include private (underscore-prefixed) methods."
 	})
+	options.add_option("--inherited", {&"help": "Include methods from base scripts."})
+	options.add_option("--engine", {&"help": "Include base scripts and engine methods."})
 	return options.get_options()
 
 
 func _process_flag(flag:String):
 	if flag == "--private":
 		show_private = true
+	elif flag == "--inherited":
+		inherited = true
+	elif flag == "--engine":
+		engine = true
 
 
 func _get_completions(ctx:Completion):
-	if not is_instance_valid(ScriptUtil.get_script_from_ctx(ctx.context)):
+	if not is_instance_valid(TargetUtil.get_target(ctx.context)):
 		return {}
 	var flags = get_flags(true)
-	var methods = ScriptUtil.get_methods_from_ctx(ctx.context, show_private, false, false)
+	var methods = TargetUtil.get_methods_from_ctx(ctx.context, show_private, false, inherited, engine)
 	if not ctx.context.unconsumed_tokens.is_empty():
 		var current_name = ctx.context.unconsumed_tokens.pop_front()
 		if current_name in methods:
@@ -53,24 +60,21 @@ func _get_completions(ctx:Completion):
 
 func _execute(ctx:Context):
 	var method_name = positional_args[0]
-	var script = ScriptUtil.get_script_from_ctx(ctx)
+	var script = TargetUtil.get_target(ctx)
 	if not is_instance_valid(script):
-		ctx.append_error("Could not get script.")
+		ctx.append_error("Could not get target.")
 		return ExitCode.FAIL
-	var methods = ScriptUtil.get_methods_from_ctx(ctx, show_private, false, false)
+	var methods = TargetUtil.get_methods_from_ctx(ctx, show_private, false, inherited, engine)
 	if not method_name in methods:
 		ctx.append_error("Unrecognized method: " + method_name)
 		return ExitCode.FAIL
-	return list_args(script, method_name, ctx)
+	return list_args(TargetUtil.get_method_info(script, method_name, inherited, engine), ctx)
 
 
-static func list_args(script, method_name:String, ctx:Context):
-	var property_info = URClassDetail.get_member_info_by_path(script, method_name)
-	if property_info is not Dictionary:
-		ctx.append_error("Could not get method '%s' in script: %s" % [method_name, script])
-		return ExitCode.ERR
+static func list_args(property_info:Dictionary, ctx:Context):
 	var args_array = property_info.get("args", [])
-	if args_array.is_empty():
+	var vararg = property_info.get("flags", 0) & METHOD_FLAG_VARARG
+	if args_array.is_empty() and not vararg:
 		ctx.append_output("No args to list.")
 		return ExitCode.OK
 
@@ -81,5 +85,7 @@ static func list_args(script, method_name:String, ctx:Context):
 		var color = _UNTYPED_COLOR if type == "Nil" else _TYPE_COLOR
 		pr.append(arg_name + ":").append(type, color).append("  ")
 
+	if vararg:
+		pr.append("...args", _UNTYPED_COLOR)
 	ctx.append_output(pr.get_string())
 	return ExitCode.OK

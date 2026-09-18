@@ -1,10 +1,11 @@
 extends "res://addons/addon_lib/gdsh/command_base.gd"
 
-const ScriptUtil = preload("res://addons/addon_lib/gdsh/builtins/script/script_util.gd")
+const TargetUtil = preload("res://addons/addon_lib/gdsh/internal/target_util.gd")
 
 const _HELP = \
-"Print the target script's resource path.
-Usage: script <target> get_path"
+"Print a script's resource path or a live node's absolute path.
+Usage: script <target> get_path
+Usage: node <path> get_path"
 
 static func get_command_name():
 	return "get_path"
@@ -15,11 +16,13 @@ static func get_self_command_data():
 	})
 
 func _execute(ctx:Context):
-	var script = ScriptUtil.get_script_from_ctx(ctx)
+	var script = TargetUtil.get_target(ctx)
 	if not is_instance_valid(script):
-		ctx.append_error("Could not get script.")
+		ctx.append_error("Could not get target.")
 		return ExitCode.FAIL
-	if script.resource_path == "":
+	if script is Node:
+		ctx.append_output(str(script.get_path()))
+	elif script.resource_path == "":
 		# Inner classes, and scripts built from a file outside the project, have no path.
 		ctx.append_output("No Path - Likely Inner Class")
 	else:

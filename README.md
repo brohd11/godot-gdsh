@@ -36,7 +36,30 @@ print(context.stderr)
 print(context.exit_code)
 ```
 
-Reuse the context to keep session state(variables, functions, etc) between executions.
+Reuse the context to keep session state (variables, functions, etc.) between executions.
+To run a file in its own subshell, use `gdsh` or put its `.gdsh` path in command position:
+
+```gdscript
+await GDSh.Execute.execute_command_multiline("gdsh res://scripts/boot.gdsh first second", context)
+```
+
+The file receives `$0`, `$1`, `$#`, and `$@`; it does not need a `#!gdsh` header.
+Use `source` with a `#!gdsh` file to apply changes to the current session.
+
+Scripts and live nodes are also command targets:
+
+```sh
+MyGlobalClass call greeting -- world
+script res://scripts/player.gd list --methods
+cn /root/Main
+Player call damage -- 5
+node /root/Main get_path
+```
+
+Both `script` and `node` offer `call`, `args`, `list`, and `get_path`. Use
+`--inherited` for base-script members, `--engine` for native members, and
+`--private` for underscore-prefixed members. Script calls are static-only;
+node calls use the live instance.
 
 ## Add a console
 

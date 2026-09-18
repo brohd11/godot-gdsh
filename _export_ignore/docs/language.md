@@ -46,9 +46,14 @@ Unsupported operators must be quoted to use them as data. `while` loops have a
 
 ## Builtins
 
-Builtins provide control flow, output, arithmetic, scripts, directory changes,
+Builtins provide control flow, output, arithmetic, scripts, node/directory changes,
 and session management. They are callable directly but hidden from root completion.
 
+- `gdsh <path.gdsh> [args...]` runs a file in a subshell; the path alone also works.
+- `source <path>` runs a `#!gdsh` file in the current scope.
+- `script <class|path.gd>` and `node <path>` select targets for `call`, `args`, `list`,
+  and `get_path`. Bare class names, `.gd` paths, and node paths work too.
+- `cd <path>` changes `cwd`; `cn <path>` changes `cwn` for relative node paths.
 - `builtins` lists bundled commands; `builtins echo hello` bypasses host overrides.
 - `hidden` lists discoverable hidden commands, including `builtins`.
 - `help` lists commands; `<command> --help` or `-h` shows usage and returns `OK`.

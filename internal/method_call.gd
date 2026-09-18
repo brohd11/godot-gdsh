@@ -13,10 +13,15 @@ static func get_method_info(target:Object, method:String) -> Dictionary:
 	if target is Script:
 		var info = _script_method(target, method)
 		return info if info.get("flags", 0) & METHOD_FLAG_STATIC else {}
+	var script = target.get_script()
+	if script != null:
+		var declared = _script_method(script, method)
+		if not declared.is_empty():
+			return declared
 	var found = {}
 	for info in target.get_method_list():
 		if info.name == method:
-			found = info # The last entry wins, so a script override beats the engine method.
+			found = info
 	return found
 
 
@@ -43,10 +48,10 @@ static func call_method(ctx, target:Object, method:String, args:Array,
 	var params:Array = info.get("args", [])
 	var defaults:Array = info.get("default_args", [])
 	var required = params.size() - defaults.size()
-	if not info.get("flags", 0) & METHOD_FLAG_VARARG:
-		if args.size() > params.size() or args.size() < required and not create_default_args:
-			_error(ctx, "Arg count mismatch: %s - expected %s, got %s" % [method, params.size(), args.size()])
-			return failed
+	var vararg = info.get("flags", 0) & METHOD_FLAG_VARARG
+	if (args.size() < required and not create_default_args) or (not vararg and args.size() > params.size()):
+		_error(ctx, "Arg count mismatch: %s - expected %s, got %s" % [method, params.size(), args.size()])
+		return failed
 
 	var valid = true
 	for i in range(mini(args.size(), params.size())):
@@ -76,6 +81,11 @@ static func call_method(ctx, target:Object, method:String, args:Array,
 			args.append(object_default.call(str(param.get("class_name", ""))) if object_default.is_valid() else null)
 		else:
 			args.append(type_convert(null, param.get("type", TYPE_NIL)))
+	# A GDScript resource only exposes its own static methods through Callable. Resolve
+	# the declaration for inherited static calls, while instance calls keep the live target.
+	if target is Script:
+		while not target.has_method(method):
+			target = target.get_base_script()
 	return {"ok": true, "result": Callable(target, method).callv(args)}
 
 

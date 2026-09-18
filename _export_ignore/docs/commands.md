@@ -58,7 +58,9 @@ context.load("res://debug_commands", true) # Hidden from root completion.
 
 Paths resolve against `context.cwd`; later loads replace matching names.
 `scopes` and `scopes_hidden` hold commands; `has_scope()` and `get_scope()` search both,
-preferring visible entries. See [Language](language.md#builtins) for builtin namespaces.
+preferring visible entries, then the host resolver, then bare target resolution.
+`get_registered_scope()` stops before bare targets, for consumers such as highlighting.
+See [Language](language.md#builtins) for builtin namespaces.
 
 Directories accept loose `.gd` files and `name/name.gd` entries. Directory-backed
 commands discover `child/child.gd` subcommands; override `_get_commands()` for custom
@@ -130,10 +132,65 @@ Completion does not execute substitutions or mutate host state. Hidden commands
 complete after being entered; incomplete syntax and redirection targets are supported.
 Hosts provide icons and render suggestions.
 
+## Script and node targets
+
+A command position resolves in this order: registered visible scope, registered hidden
+scope, host `scope_resolver`, then a bare target. Bare targets select the registered
+handler, so hosts can replace `script`, `node`, or `gdsh`.
+
+| Bare token | Handler |
+| --- | --- |
+| `.gdsh` path | `gdsh` |
+| `.gd` path | `script` |
+| Global class name, optionally followed by inner-class access | `script` |
+| Absolute node path or a node relative to `cwn` | `node` |
+| Both a global class and a node | Error: use `script X` or `node X` |
+
+`script <class|path.gd>` accepts resource paths, absolute OS paths, and paths relative
+to `cwd`; `--path=` and `--class=` are equivalent selectors. A script loaded from
+outside the project has no resource path. `script` with no target uses the host's
+`current_script` hook. `script --text` prints the resource's source code, or fails
+with a diagnostic if source was stripped in a binary export.
+
+`node <path>` selects a live node, with `cn <path>` changing the current working node.
+Without a subcommand, a node prints its absolute path, suitable for `tree inspect`.
+`node ./Child` and `node ..` use normal node-path traversal.
+
+Both targets share these subcommands:
+
+| Subcommand | Behavior |
+| --- | --- |
+| `call <method> -- [args...]` | Call a static method on a Script, or an instance/static method on a Node; convert fixed arguments and use declared defaults |
+| `args <method>` | Print a method signature's arguments, including `...args` for varargs; Script instance signatures may also be inspected |
+| `list` | List methods, signals, constants, properties and enums; narrow with `--methods`, `--signals`, `--constants`, `--properties`, or `--enums` |
+| `get_path` | Print a Script's resource path (or a no-path message) or a Node's absolute path |
+
+`call`, `args`, and `list` default to declarations on the target's own script.
+`--inherited` includes base scripts; `--engine` includes base scripts and the engine
+surface. For scriptless nodes, use `--engine`. Live property lists also expose dynamic
+properties with `--engine`, omitting category/group/internal metadata entries.
+`list --inherited` now selects base scripts; use `list --engine` for native members.
+
+All three hide underscore-prefixed members unless `--private` is supplied. The flag
+also permits explicit private calls and signature inspection. `call --default`
+creates values for missing required arguments; declared defaults always work.
+Varargs accept extra payload arguments without conversion, and still require their
+fixed parameters. `list --data` includes metadata; `--pretty` compacts output.
+
+```sh
+MyGlobalClass call greeting -- world
+script res://scripts/player.gd list --methods --inherited
+cn /root/Main
+Player call damage -- 5
+Player args --engine call
+Player | tree inspect
+```
+
 ## Host integrations
 
 `scope_resolver: Callable(name, context)` returns `{"script": command_script_or_object}`
-or `null`. Registered scopes take precedence. Execution and completion share this
+or `null`. Registered scopes take precedence; a null result falls through to bare
+target resolution. Execution and completion share this
 resolver, so it must not execute commands or mutate the session.
 
 `host_data` holds services separately from command state in `data`. It is
@@ -142,6 +199,11 @@ objects' lifetimes. Prefer weak references for UI bindings.
 
 | `host_data` key | Contract |
 | --- | --- |
+| `current_script` | `Callable() -> Script` supplies the target for `script` without an explicit target |
+| `substitute_args` | `Callable(args:Array) -> Array` applies host substitutions to method-call payloads before conversion |
+| `object_default` | `Callable(class_name:String) -> Object` supplies missing object arguments for `call --default` |
+| `file_paths` | `Callable(directories:bool) -> PackedStringArray` supplies host paths for completion |
+| `filesystem_changed` | `Callable()` asks the host to refresh after file writes; hosts also call `GDSh.Utils.clear_global_class_cache()` when the global class registry changes |
 | `clear_callback` | `Callable(ctx, history:bool)` handles `clear [--history]`; may return a status |
 | `new_ctx_callback` | `Callable(ctx)` handles `new_ctx`; may return a status. Ends the submission |
 | `undo_redo` | `Callable() -> Object` supplies `UndoRedo` or a compatible object; null applies changes directly |

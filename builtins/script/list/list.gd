@@ -1,35 +1,34 @@
 extends "res://addons/addon_lib/gdsh/command_base.gd"
 
-const ScriptUtil = preload("res://addons/addon_lib/gdsh/builtins/script/script_util.gd")
+const TargetUtil = preload("res://addons/addon_lib/gdsh/internal/target_util.gd")
 
-const URClassDetail = UtilR.Objects.URClassDetail
 const PrintRich = UtilR.Strings.PrintRich
 
 const _ERROR_COLOR = Color("cc000c")
 const _MEMBER_COLOR = Color("4d819a")
 
 const LIST_COMMANDS_OPTIONS = ["--methods", "--signals", "--constants", "--properties", "--enums"]
-const LIST_MODIFIER_OPTIONS = ["--data", "--inherited", "--pretty"]
+const LIST_MODIFIER_OPTIONS = ["--data", "--inherited", "--pretty", "--private", "--engine"]
 
 const LIST_OPTION_HELP = {
 	"--methods": {
-		"help": "List the script's methods.",
+		"help": "List the target's methods.",
 		"prop": &"method_flag",
 	},
 	"--signals": {
-		"help": "List the script's signals.",
+		"help": "List the target's signals.",
 		"prop": &"signal_flag",
 	},
 	"--constants": {
-		"help": "List the script's constants.",
+		"help": "List the target's constants.",
 		"prop": &"const_flag",
 	},
 	"--properties": {
-		"help": "List the script's properties.",
+		"help": "List the target's properties.",
 		"prop": &"prop_flag",
 	},
 	"--enums": {
-		"help": "List the script's enums (requires --inherited).",
+		"help": "List the target's enums.",
 		"prop": &"enum_flag",
 	},
 	"--data": {
@@ -37,8 +36,16 @@ const LIST_OPTION_HELP = {
 		"prop": &"data_flag",
 	},
 	"--inherited": {
-		"help": "Include inherited members from the base class.",
+		"help": "Include members from base scripts.",
 		"prop": &"inh_flag",
+	},
+	"--private": {
+		"help": "Include private (underscore-prefixed) members.",
+		"prop": &"private_flag",
+	},
+	"--engine": {
+		"help": "Include base scripts and live engine members (including dynamic properties).",
+		"prop": &"engine_flag",
 	},
 	"--pretty": {
 		"help": "Print on a single line rather than new-lines.",
@@ -54,6 +61,8 @@ var prop_flag:=false
 var enum_flag:=false
 
 var inh_flag:=false
+var private_flag:=false
+var engine_flag:=false
 var data_flag:=false
 var pretty_flag:=false
 
@@ -64,8 +73,8 @@ static func get_command_name() -> String:
 
 static func get_self_command_data() -> Dictionary:
 	return _command_data({
-		&"help": ScriptUtil.get_usage_string(
-			"List members of the target script",
+		&"help": TargetUtil.get_usage_string(
+			"List members of the target script or live node",
 			"list <options>"
 		),
 	})
@@ -91,9 +100,9 @@ func _process_flag(flag:String):
 
 
 func _execute(ctx:Context):
-	var script = ScriptUtil.get_script_from_ctx(ctx)
+	var script = TargetUtil.get_target(ctx)
 	if not is_instance_valid(script):
-		ctx.append_error("Could not get script.")
+		ctx.append_error("Could not get target.")
 		return ExitCode.FAIL
 	return list_members(ctx, script)
 
@@ -108,40 +117,18 @@ func list_members(ctx:Context, script) -> int:
 			continue
 
 		var flag_raw = flag.trim_prefix("--")
-		var members = _get_members(script, flag, inh_flag)
-		if inh_flag:
-			ctx.append_output("Class %s:" % [flag_raw])
-		else:
-			if flag == "--enums":
-				if not target_all_flag:
-					ctx.append_output("\tCannot get 'Script' enums, no API in ClassDB. Use '--inherited' option.")
-				continue
-			ctx.append_output("Script %s:" % [flag_raw])
+		var members = TargetUtil.get_members(script, flag_raw, private_flag, inh_flag, engine_flag)
+		ctx.append_output("%s %s:" % ["Node" if script is Node else "Script", flag_raw])
 
 		_add_to_members_to_output(ctx, members, pr)
 
 	return ExitCode.OK
 
 
-static func _get_members(script, flag:String, inherited:bool):
-	match flag:
-		LIST_COMMANDS_OPTIONS[0]: # methods
-			return URClassDetail.class_get_all_methods(script) if inherited else URClassDetail.script_get_all_methods(script)
-		LIST_COMMANDS_OPTIONS[1]: # signals
-			return URClassDetail.class_get_all_signals(script) if inherited else URClassDetail.script_get_all_signals(script)
-		LIST_COMMANDS_OPTIONS[2]: # constants
-			return URClassDetail.class_get_all_constants(script) if inherited else URClassDetail.script_get_all_constants(script)
-		LIST_COMMANDS_OPTIONS[3]: # properties
-			return URClassDetail.class_get_all_properties(script) if inherited else URClassDetail.script_get_all_properties(script)
-		LIST_COMMANDS_OPTIONS[4]: # enums
-			return URClassDetail.class_get_all_enums(script) if inherited else {}
-	return {}
-
-
 func _add_to_members_to_output(ctx:Context, members:Dictionary, pr):
 	if members.is_empty():
 		var err_color = _ERROR_COLOR if pretty_flag else Color.TRANSPARENT
-		pr.append("\tNone in script.", err_color)
+		pr.append("\tNone on target.", err_color)
 		ctx.append_output(pr.get_string(true))
 	elif pretty_flag and not data_flag:
 		pr.append("\t" + "  ".join(members.keys()), _MEMBER_COLOR)

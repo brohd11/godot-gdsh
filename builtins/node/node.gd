@@ -27,18 +27,19 @@ static func get_self_command_data() -> Dictionary:
 	})
 
 
-## Entered two ways, as `global` is: explicitly (`node <path>`) or with the path itself in
+## Entered two ways: explicitly (`node <path>`) or with the path itself in
 ## command position, in which case token 0 is already the path.
 func _consume_self(ctx:Context) -> ExitCode:
+	ctx.data.erase("script")
+	ctx.data.erase("node")
 	var token = _consume_token(ctx)
 	if token == get_command_name():
 		# Nothing to route: fall through to _execute, which prints help.
-		if ctx.tokens_empty() or ctx.unconsumed_tokens.front() in get_commands():
+		if ctx.tokens_empty() or ctx.unconsumed_tokens.front().begins_with("-") or ctx.unconsumed_tokens.front() in get_commands():
 			return ExitCode.OK
 		token = _consume_token(ctx)
 	requested = token
-	# The head before the first '.' is the path; node names cannot contain '.'.
-	var node = NodePaths.resolve(token.get_slice(".", 0), ctx.cwn)
+	var node = NodePaths.resolve(token, ctx.cwn)
 	if node != null:
 		node_path = token
 		ctx.data["node"] = node
@@ -63,3 +64,15 @@ func _execute(ctx:Context):
 		return ExitCode.FAIL
 	ctx.append_output(NodePaths.path_of(node))
 	return ExitCode.OK
+
+
+func _get_commands() -> Dictionary:
+	var commands = {}
+	for command in [
+		preload("res://addons/addon_lib/gdsh/builtins/script/call/call.gd"),
+		preload("res://addons/addon_lib/gdsh/builtins/script/list/list.gd"),
+		preload("res://addons/addon_lib/gdsh/builtins/script/args/args.gd"),
+		preload("res://addons/addon_lib/gdsh/builtins/script/get_path/get_path.gd"),
+	]:
+		Options.add_command_script_to_dict(command, commands)
+	return commands
