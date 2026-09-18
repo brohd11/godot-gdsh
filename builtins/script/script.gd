@@ -1,8 +1,6 @@
 extends "res://addons/addon_lib/gdsh/command_base.gd"
 
 const TargetUtil = preload("res://addons/addon_lib/gdsh/internal/target_util.gd")
-const URString = UtilR.Strings.URString
-const URClassDetail = UtilR.Objects.URClassDetail
 
 const _HELP = \
 "Target a GDScript: a global class name, a res:// / user:// / absolute path, or a path relative
@@ -30,12 +28,12 @@ func _get_flags() -> Dictionary:
 		&"help": "Output the target script's source code to stdout."
 	})
 	options.add_option("--path=", {
-		&"help": "Target a script by path instead of the current one.",
+		&"help": "Target a script by path, optionally followed by .Inner.",
 		&"trailing_char": "",
 		&"flag_completion": {"type": FlagType.FILE, "ext": ["gd"]},
 	})
 	options.add_option("--class=", {
-		&"help": "Target a global (user) class by name instead of the current script.",
+		&"help": "Target a global class, optionally followed by .Inner.",
 		&"trailing_char": "",
 		&"flag_completion": {"type": FlagType.USER_CLASS},
 	})
@@ -50,23 +48,43 @@ func _process_flag(flag:String):
 ## Entered explicitly as `script <target>`, or with the target itself in command position.
 func _consume_self(ctx:Context) -> ExitCode:
 	var token = _consume_token(ctx)
-	if token == get_command_name() and not ctx.tokens_empty():
-		var next:String = ctx.unconsumed_tokens.front()
-		# Only a bare target is absorbed here. Flags and subcommands must reach _route, or
-		# `script --path=x get_path` would consume the flag as its target.
-		if not next.begins_with("-") and not next in get_commands():
-			token = _consume_token(ctx)
-	# Left as "script" for the explicit form, which means the host's current script.
-	script_access_path = token
+	if token == get_command_name():
+		token = ""
+		if not ctx.tokens_empty():
+			var next:String = ctx.unconsumed_tokens.front()
+			if not next.begins_with("-") and not next in get_commands():
+				token = _consume_token(ctx)
 	if ctx.stdin != "":
-		script_access_path = ctx.stdin.strip_edges()
-	ctx.data.erase("node")
-	ctx.data["script"] = TargetUtil.resolve_access_path(script_access_path, ctx)
+		token = ctx.stdin.strip_edges()
+	_set_script_access_path(token)
 	return ExitCode.OK
+
 
 func _set_script_access_path(new_path:String):
 	script_access_path = new_path
-	_ctx_obj.data["script"] = TargetUtil.resolve_access_path(script_access_path, _ctx_obj)
+	_ctx_obj.data.erase("node")
+	_ctx_obj.data["script"] = TargetUtil.resolve_access_path(new_path, _ctx_obj)
+	_ctx_obj.data["script_error"] = "No script target selected." if new_path.is_empty() else "Could not resolve script target: " + new_path
+
+
+## Shared by the runtime script/node routers and the editor's current-script adapter.
+static func get_target_commands() -> Dictionary:
+	var commands = {}
+	for command in [
+		preload("res://addons/addon_lib/gdsh/builtins/script/args/args.gd"),
+		preload("res://addons/addon_lib/gdsh/builtins/script/call/call.gd"),
+		preload("res://addons/addon_lib/gdsh/builtins/script/get_path/get_path.gd"),
+		preload("res://addons/addon_lib/gdsh/builtins/script/list/list.gd"),
+	]:
+		Options.add_command_script_to_dict(command, commands)
+	return commands
+
+
+func _get_commands() -> Dictionary:
+	var commands = get_target_commands()
+	Options.add_command_script_to_dict(preload("res://addons/addon_lib/gdsh/builtins/script/list_global/list_global.gd"), commands)
+	return commands
+
 
 func _get_help(what:String):
 	if script_access_path != "" and script_access_path != get_command_name():
@@ -76,40 +94,62 @@ func _get_help(what:String):
 		_ctx_obj.append_error("Unrecognized command: " + what)
 
 func _get_completions(ctx:Completion):
+	var token = ctx.token_before_cursor
+	var has_space = ctx.char_before_cursor in [" ", "\t", "\n"]
+	if not has_space and (token.begins_with("--path=") or token.begins_with("--class=")):
+		var value = script_access_path # Routing already expanded/unquoted the flag value.
+		if TargetUtil.parse_script_target(value).has_members:
+			var choices = TargetUtil.complete_access_path(value, ctx.context)
+			var prefix = token.left(token.find("=") + 1)
+			return _format_target_choices(choices, token.substr(prefix.length()), prefix)
 	var flag_completion = _get_flag_type_completions(ctx)
 	if flag_completion != null:
 		return flag_completion
 	if "--text" in consumed_tokens:
 		return {}
+	if not has_space and positional_args.is_empty() and not token.begins_with("-") and not script_access_path.is_empty():
+		var parsed = TargetUtil.parse_script_target(script_access_path)
+		if parsed.has_members:
+			return _format_target_choices(TargetUtil.complete_access_path(script_access_path, ctx.context), token)
+		return _target_choices(ctx.context, script_access_path)
+	var commands = get_commands(true)
+	commands.merge(get_flags(true))
+	if script_access_path.is_empty():
+		commands.merge(_target_choices(ctx.context))
+	return commands
 
-	var cursor_on_access = ctx.token_before_cursor == script_access_path and ctx.char_before_cursor != " "
-	if not cursor_on_access:
-		var commands = get_commands(true)
-		commands.merge(get_flags(true))
-		return commands
+
+static func _target_choices(ctx:Context, prefix:String="") -> Dictionary:
+	var all_classes = Utils.global_class_paths()
+	var hook = ctx.host_data.get("script_targets")
+	var names = hook.call() if hook is Callable and hook.is_valid() else all_classes.keys()
 	var options = Options.new()
-	options.merge(get_completion_static(ctx, script_access_path))
+	for name in names:
+		if all_classes.has(name) and str(name).begins_with(prefix):
+			options.add_option(str(name))
 	return options.get_options()
 
-## Member-access completion for a partially typed target: offers the script's preloads.
-static func get_completion_static(ctx:Completion, target_access_path):
-	var options = Options.new()
-	var cursor_on_access = ctx.token_before_cursor == target_access_path and ctx.char_before_cursor != " "
-	var target_script = TargetUtil.get_script_from_ctx(ctx.context)
-	if not is_instance_valid(target_script):
-		if not cursor_on_access:
-			return {}
-		var access_path = URString.trim_member_access_back(target_access_path)
-		target_script = TargetUtil.resolve_access_path(access_path, ctx.context)
-	if not is_instance_valid(target_script):
-		return {}
-	if not cursor_on_access:
-		return {}
-	for name in URClassDetail.script_get_preloads(target_script, false, true):
-		options.add_option(name, {&"trailing_char": ""})
-	return options.get_options()
+
+## Completion replaces the whole raw word. Keep quoted paths as a single shell argument.
+static func _format_target_choices(choices:Dictionary, raw_value:String, flag_prefix:String="") -> Dictionary:
+	for name in choices:
+		if name == Options.Keys.COMMAND_META:
+			continue
+		var meta:Dictionary = choices[name][Options.Keys.METADATA]
+		var insertion:String = meta[Options.Keys.INSERT]
+		var quote = raw_value.left(1) if raw_value.left(1) in ["'", '"'] else ""
+		if quote.is_empty() and (insertion.contains(" ") or insertion.contains("\t")):
+			quote = '"'
+		if quote == '"':
+			insertion = insertion.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
+		meta[Options.Keys.INSERT] = flag_prefix + quote + insertion + quote
+	return choices
+
 
 func _execute(ctx:Context):
+	if not script_access_path.is_empty() and not is_instance_valid(TargetUtil.get_script_from_ctx(ctx)):
+		ctx.append_error(TargetUtil.target_error(ctx))
+		return ExitCode.FAIL
 	if text_flag:
 		var script = TargetUtil.get_script_from_ctx(ctx)
 		if is_instance_valid(script):
@@ -118,8 +158,8 @@ func _execute(ctx:Context):
 				return ExitCode.FAIL
 			ctx.write_output(script.source_code)
 		else:
-			ctx.append_error("Could not get script: " + script_access_path)
+			ctx.append_error(TargetUtil.target_error(ctx))
 			return ExitCode.FAIL
 		return ExitCode.OK
-	_get_help_for_token(consumed_tokens.front() if not consumed_tokens.is_empty() else get_command_name())
-	return ExitCode.FAIL
+	ctx.append_output(get_help_string(true))
+	return ExitCode.OK if positional_args.is_empty() else ExitCode.FAIL

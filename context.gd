@@ -135,6 +135,9 @@ func _resolve_bare(name:String):
 	match name.get_extension().to_lower():
 		"gdsh": return _bare_scope("gdsh")
 		"gd": return _bare_scope("script")
+	var target_util = preload("res://addons/addon_lib/gdsh/internal/target_util.gd")
+	if target_util.parse_script_target(name).is_file:
+		return _bare_scope("script")
 	# A class name never contains a slash, so a slashed token is a path, not a class.
 	if name.contains("/"):
 		return _bare_scope("node") if _bare_node(name) != null else null
@@ -159,7 +162,7 @@ func _bare_scope(command_name:String):
 
 
 func _bare_node(path:String) -> Node:
-	return NodePaths.resolve(path.get_slice(".", 0), cwn)
+	return NodePaths.resolve(path, cwn)
 
 
 ## Set raw_commands to the registered names whose command data declares `raw`.

@@ -8,6 +8,7 @@ const Expansion = preload("res://addons/addon_lib/gdsh/internal/expansion.gd")
 const Options = preload("res://addons/addon_lib/gdsh/options.gd")
 const Types = preload("res://addons/addon_lib/gdsh/internal/types.gd")
 const Utils = preload("res://addons/addon_lib/gdsh/internal/utils.gd")
+const NodePaths = preload("res://addons/addon_lib/gdsh/internal/node_paths.gd")
 
 var raw_text:String
 var caret_col:int
@@ -59,6 +60,10 @@ func get_completions() -> Dictionary:
 					options.add_option(name)
 			for name in context.functions:
 				options.add_option(name + "[func]", {&"insert": name})
+			# Incomplete node names need suggestions before execution can resolve them.
+			# Restrict this to the command word; arguments keep their command's completion.
+			if context._bare_scope("node") != null and context.unconsumed_tokens.size() == 1 and not char_before_cursor in [" ", "\t", "\n", ""] and not context.functions.has(first_word):
+				options.merge(NodePaths.complete_path(first_word, context.cwn, token_before_cursor))
 		return options.get_options()
 	if context.functions.has(first_word):
 		return {}

@@ -1,12 +1,12 @@
 #! namespace GDSh class NodePaths
 extends RefCounted
-## Resolve SceneTree node paths for command-position node targets and the `cwn` working node.
-## Deliberately a near-duplicate of gdsh_lib/tree/tree_util's root/path_of: `tree` is an optional
-## command pack, so core must not depend on it.
+## Shared SceneTree lookup for command-position node targets, the `cwn` working node and
+## optional command packs such as gdsh_lib/tree. Callers own their input policy and diagnostics.
 
 ## Where `cwn` starts. In the editor this is the editor's own window, not the edited scene;
 ## a host that knows better sets `cwn` itself.
 const DEFAULT_CWN = "/root"
+const Options = preload("res://addons/addon_lib/gdsh/options.gd")
 
 
 ## The SceneTree root, or null when there is no SceneTree.
@@ -50,3 +50,46 @@ static func resolve(path:String, cwn:String=DEFAULT_CWN) -> Node:
 		if base != null:
 			node = base.get_node_or_null(node_path)
 	return node if is_instance_valid(node) else null
+
+
+## Complete the last path segment, retaining the typed prefix for whole-word replacement.
+## Internal children are addressable too, and make up much of the editor's SceneTree.
+static func complete_path(path:String, cwn:String=DEFAULT_CWN, raw_word:String="", include_internal:bool=true) -> Dictionary:
+	var options = Options.new()
+	if path.contains(":"):
+		return options.get_options()
+	var insert_base = path.left(path.rfind("/") + 1)
+	if insert_base == "/":
+		var tree_root = root()
+		if tree_root != null:
+			_add_path_option(options, str(tree_root.name), insert_base, raw_word)
+		return options.get_options()
+	var base = cwn_node(cwn) if insert_base.is_empty() else resolve(insert_base, cwn)
+	if base == null:
+		return options.get_options()
+	if base.get_parent() != null:
+		_add_path_option(options, "..", insert_base, raw_word)
+	for child in base.get_children(include_internal):
+		_add_path_option(options, str(child.name), insert_base, raw_word)
+	return options.get_options()
+
+
+static func _add_path_option(options:Options, name:String, prefix:String, raw_word:String) -> void:
+	var insertion = prefix + name
+	var quote = raw_word.left(1) if raw_word.left(1) in ["'", '"'] else ""
+	if quote.is_empty():
+		for character in insertion:
+			if character in " \t\r\n$'\";|&()<>#\\":
+				quote = '"'
+				break
+	# The slash belongs inside the quotes so accepting again keeps a single path argument.
+	var trailing = "/"
+	if not quote.is_empty():
+		insertion += "/"
+		if quote == '"':
+			insertion = insertion.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
+		elif insertion.contains("'"):
+			insertion = insertion.replace("'", "'\\''")
+		insertion = quote + insertion + quote
+		trailing = ""
+	options.add_option(name, {&"insert": insertion, &"trailing_char": trailing})

@@ -52,7 +52,10 @@ and session management. They are callable directly but hidden from root completi
 - `gdsh <path.gdsh> [args...]` runs a file in a subshell; the path alone also works.
 - `source <path>` runs a `#!gdsh` file in the current scope.
 - `script <class|path.gd>` and `node <path>` select targets for `call`, `args`, `list`,
-  and `get_path`. Bare class names, `.gd` paths, and node paths work too.
+  and `get_path`. Bare class names, `.gd` paths, and node paths work too. Class/file
+  script targets also accept `.Inner.Nested` suffixes.
+- `script list_global` lists and filters global classes without a target.
+- `pwn` prints the stored working-node path.
 - `cd <path>` changes `cwd`; `cn <path>` changes `cwn` for relative node paths.
 - `builtins` lists bundled commands; `builtins echo hello` bypasses host overrides.
 - `hidden` lists discoverable hidden commands, including `builtins`.

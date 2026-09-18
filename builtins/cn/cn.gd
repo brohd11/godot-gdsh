@@ -4,7 +4,9 @@ const NodePaths = preload("res://addons/addon_lib/gdsh/internal/node_paths.gd")
 
 const _HELP = \
 "Change the GDSh working node, the base for relative node paths (as cd is for file paths).
-Usage: cn <rel or abs node path>"
+Usage: cn [--internal|-i] <rel or abs node path>"
+
+var internal_flag := false
 
 static func get_command_name():
 	return "cn"
@@ -16,37 +18,35 @@ static func get_self_command_data():
 		&"positional_count": 1,
 	})
 
-func _get_completions(completion:Completion) -> Dictionary:
-	return get_completion_static(completion.context, positional_args)
+func _get_flags() -> Dictionary:
+	var options = Options.new()
+	options.add_option("--internal", {
+		&"short": "i",
+		&"help": "Include internal children in node-path completion.",
+	})
+	return options.get_options()
 
-static func get_completion_static(ctx:Context, pos_args:Array) -> Dictionary:
+func _process_flag(flag:String):
+	if flag == "--internal":
+		internal_flag = true
+
+func _get_completions(completion:Completion) -> Dictionary:
+	var has_space = completion.char_before_cursor in [" ", "\t", "\n", ""]
+	if not has_space and completion.token_before_cursor.begins_with("-"):
+		return get_flags(true)
+	if not _positional_arg_index_valid():
+		return get_flags(true) if has_space else {}
+	var path = str(positional_args[0]) if not positional_args.is_empty() else ""
+	var choices = NodePaths.complete_path(path, completion.context.cwn, completion.token_before_cursor, internal_flag)
+	if has_space:
+		choices.merge(get_flags(true))
+	return choices
+
+static func get_completion_static(ctx:Context, pos_args:Array, include_internal:bool=false) -> Dictionary:
 	var rel_path = ""
 	if pos_args.size() > 0:
 		rel_path = pos_args[0]
-	return _completion_node_path(ctx, rel_path)
-
-
-## Child node names under the typed prefix, mirroring cd's directory completion: only the last
-## segment is completed, and the prefix the user already typed is kept for insertion.
-static func _completion_node_path(ctx:Context, current_rel_path:String) -> Dictionary:
-	var options = Options.new()
-	var insert_base = current_rel_path.left(current_rel_path.rfind("/") + 1)
-	var base_path = insert_base.trim_suffix("/")
-	var base:Node
-	if base_path.is_empty():
-		base = NodePaths.cwn_node(ctx.cwn)
-	else:
-		base = NodePaths.resolve(base_path, ctx.cwn)
-	if base == null:
-		return options.get_options()
-	options.add_option("..", {&"insert": insert_base + "..", &"trailing_char": "/"})
-	for child in base.get_children():
-		var child_name = str(child.name)
-		options.add_option(child_name, {
-			&"insert": insert_base + child_name,
-			&"trailing_char": "/",
-		})
-	return options.get_options()
+	return NodePaths.complete_path(rel_path, ctx.cwn, "", include_internal)
 
 
 func _execute(ctx:Context):

@@ -16,7 +16,7 @@ Use `await` to support commands that pause. Synchronous commands finish in the c
 A context keeps variables, aliases, functions, command scopes, positional arguments,
 and `cwd` (initially `res://`) and `cwn` (initially `/root`). File paths may also use
 `user://` or absolute OS paths. `cd` changes the working directory; `cn` changes the
-working node. Both are inherited by child, subshell, and completion contexts.
+working node; `pwn` prints its stored path. Both are inherited by child, subshell, and completion contexts.
 
 | Field | Meaning |
 | --- | --- |

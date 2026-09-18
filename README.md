@@ -51,7 +51,10 @@ Scripts and live nodes are also command targets:
 ```sh
 MyGlobalClass call greeting -- world
 script res://scripts/player.gd list --methods
+res://scripts/player.gd.Inner call answer
+script list_global --name=Player*
 cn /root/Main
+pwn
 Player call damage -- 5
 node /root/Main get_path
 ```

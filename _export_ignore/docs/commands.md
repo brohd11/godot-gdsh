@@ -141,20 +141,53 @@ handler, so hosts can replace `script`, `node`, or `gdsh`.
 | Bare token | Handler |
 | --- | --- |
 | `.gdsh` path | `gdsh` |
-| `.gd` path | `script` |
+| `.gd` path, optionally followed by `.Inner.Nested` | `script` |
 | Global class name, optionally followed by inner-class access | `script` |
 | Absolute node path or a node relative to `cwn` | `node` |
 | Both a global class and a node | Error: use `script X` or `node X` |
 
 `script <class|path.gd>` accepts resource paths, absolute OS paths, and paths relative
 to `cwd`; `--path=` and `--class=` are equivalent selectors. A script loaded from
-outside the project has no resource path. `script` with no target uses the host's
-`current_script` hook. `script --text` prints the resource's source code, or fails
+outside the project has no resource path. `script` with no target displays help;
+target commands require an explicit or piped target. `script --text` prints the
+resource's source code, or fails
 with a diagnostic if source was stripped in a binary export.
+
+All script selectors support `.Inner.Nested` suffixes, including file paths in command
+position, `--path=`, `--class=`, and piped targets. Traversal accepts Script-valued
+constants (inner classes and preloads), including inherited constants. Missing or
+non-Script members fail rather than falling back to their parent. Completion preserves
+the target prefix and quoting while suggesting members.
+
+```sh
+script MyGlobalClass.Inner call answer
+MyGlobalClass.Inner.Nested list
+res://scripts/example.gd.Inner call answer
+script --path="res://my scripts/example.gd.Inner" get_path
+```
+
+Editor Console exposes its current script as `editor script`, including
+`editor script.Inner call answer`. Core `script` never selects an editor script.
+`format text` remains the editor command for unsaved buffer text.
+
+`script list_global` lists registered global classes without selecting a target.
+Filters are `--tool`, `--abstract`, `--lang=` (default GDScript), `--name=`, and
+`--base=`. Name/base filters support exact, `prefix*`, `*suffix`, and `*substring*`
+matching. No matches is a successful command with a diagnostic message.
 
 `node <path>` selects a live node, with `cn <path>` changing the current working node.
 Without a subcommand, a node prints its absolute path, suitable for `tree inspect`.
-`node ./Child` and `node ..` use normal node-path traversal.
+`node ./Child` and `node ..` use normal node-path traversal. `pwn` prints the stored
+working-node path, even if that node has disappeared; it does not resolve or change it.
+
+Node paths complete segment by segment in `cn Parent/`, `node Parent/`, and directly
+in command position (`Parent/`). Partial names, absolute paths from `/root`, `./`,
+and `../` are supported. `cn` hides internal children by default; use
+`cn --internal Parent/` (or `cn -i Parent/`) to include them in completion.
+Explicit internal paths still resolve without the flag. `node` and bare node-path
+completion include internal children. Completion quotes names containing spaces.
+Add a space after the target to complete its
+subcommands, for example `Parent/Child call`.
 
 Both targets share these subcommands:
 
@@ -199,7 +232,7 @@ objects' lifetimes. Prefer weak references for UI bindings.
 
 | `host_data` key | Contract |
 | --- | --- |
-| `current_script` | `Callable() -> Script` supplies the target for `script` without an explicit target |
+| `script_targets` | `Callable() -> PackedStringArray` supplies initial `script` target suggestions; absent means all global classes. Invalid names are omitted; execution and `--class=` completion remain unrestricted |
 | `substitute_args` | `Callable(args:Array) -> Array` applies host substitutions to method-call payloads before conversion |
 | `object_default` | `Callable(class_name:String) -> Object` supplies missing object arguments for `call --default` |
 | `file_paths` | `Callable(directories:bool) -> PackedStringArray` supplies host paths for completion |
@@ -213,6 +246,11 @@ The console supplies default clear/reset callbacks unless already set. Without a
 callback, those builtins fail. Record changes with `ctx.undo_action(name)`; do not
 also apply them manually. `undoredo --compound [name]` applies actions immediately,
 then `undoredo commit [name]` records one undo entry or `undoredo cancel` reverts them.
+
+The protected `_resolve_subcommand(token, commands)` hook returns command option data
+or null. The default matches exact names. Both execution and completion use it and
+leave the original token for the child; Editor Console uses this to route
+`editor script.Inner` to its script adapter. Overrides should prefer exact children.
 
 ### Raw commands
 

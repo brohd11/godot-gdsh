@@ -30,6 +30,7 @@ static func get_self_command_data() -> Dictionary:
 ## Entered two ways: explicitly (`node <path>`) or with the path itself in
 ## command position, in which case token 0 is already the path.
 func _consume_self(ctx:Context) -> ExitCode:
+	ctx.data.erase("script_error")
 	ctx.data.erase("script")
 	ctx.data.erase("node")
 	var token = _consume_token(ctx)
@@ -67,12 +68,14 @@ func _execute(ctx:Context):
 
 
 func _get_commands() -> Dictionary:
-	var commands = {}
-	for command in [
-		preload("res://addons/addon_lib/gdsh/builtins/script/call/call.gd"),
-		preload("res://addons/addon_lib/gdsh/builtins/script/list/list.gd"),
-		preload("res://addons/addon_lib/gdsh/builtins/script/args/args.gd"),
-		preload("res://addons/addon_lib/gdsh/builtins/script/get_path/get_path.gd"),
-	]:
-		Options.add_command_script_to_dict(command, commands)
-	return commands
+	return preload("res://addons/addon_lib/gdsh/builtins/script/script.gd").get_target_commands()
+
+
+func _get_completions(completion:Completion) -> Dictionary:
+	var has_space = completion.char_before_cursor in [" ", "\t", "\n", ""]
+	if not requested.is_empty() and positional_args.is_empty() and payload.is_empty() and not has_space and consumed_tokens.back() == requested:
+		return NodePaths.complete_path(requested, completion.context.cwn, completion.token_before_cursor)
+	var choices:Dictionary = super(completion)
+	if requested.is_empty() and positional_args.is_empty() and payload.is_empty() and has_space:
+		choices.merge(NodePaths.complete_path("", completion.context.cwn))
+	return choices

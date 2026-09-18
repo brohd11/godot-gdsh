@@ -150,8 +150,8 @@ func _route(ctx:Context, completion:Completion=null):
 				continue
 			if positional_args.is_empty():
 				var commands = get_commands()
-				if commands.has(token):
-					var data = commands[token]
+				var data = _resolve_subcommand(token, commands)
+				if data != null:
 					return data.get_command.call() if data.has("get_command") else _get_command(token)
 		var value = _consume_token(ctx)
 		if in_payload: payload.append(value)
@@ -379,6 +379,12 @@ func _get_commands_in_dir(sort_priority:=true):
 	if sort_priority:
 		options = Utils.sort_dict_with_priority_key(options, &"priority")
 	return options
+
+
+## Routing hook shared by execution and completion. Overrides may recognize alternate
+## spellings while leaving the original token for the selected child's _consume_self.
+func _resolve_subcommand(token:String, commands:Dictionary):
+	return commands.get(token)
 
 
 func _get_command(command:String):

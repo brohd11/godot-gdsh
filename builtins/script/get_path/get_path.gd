@@ -18,7 +18,7 @@ static func get_self_command_data():
 func _execute(ctx:Context):
 	var script = TargetUtil.get_target(ctx)
 	if not is_instance_valid(script):
-		ctx.append_error("Could not get target.")
+		ctx.append_error(TargetUtil.target_error(ctx))
 		return ExitCode.FAIL
 	if script is Node:
 		ctx.append_output(str(script.get_path()))

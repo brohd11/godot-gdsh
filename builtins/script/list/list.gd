@@ -102,7 +102,7 @@ func _process_flag(flag:String):
 func _execute(ctx:Context):
 	var script = TargetUtil.get_target(ctx)
 	if not is_instance_valid(script):
-		ctx.append_error("Could not get target.")
+		ctx.append_error(TargetUtil.target_error(ctx))
 		return ExitCode.FAIL
 	return list_members(ctx, script)
 
