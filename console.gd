@@ -10,6 +10,7 @@ const SourceFont = preload("res://addons/addon_lib/gdsh/internal/source_font.tre
 const Highlighter = preload("res://addons/addon_lib/gdsh/internal/console_highlighter.gd")
 const ScriptHighlighter = preload("res://addons/addon_lib/gdsh/internal/script_highlighter.gd")
 const Palette = preload("res://addons/addon_lib/gdsh/internal/palette.gd")
+const TuiSession = preload("res://addons/addon_lib/gdsh/internal/tui_session.gd")
 
 signal command_submitted(text:String)
 signal command_finished(text:String, result:Context)
@@ -52,12 +53,17 @@ var _pending:Array = []
 var _stream_out_len:int = 0
 var _stream_err_len:int = 0
 var _stream_err_header:=false
+var active_tui:TuiSession
+var _tui_hidden_controls:Array = []
+var _leaving_tree:=false
+var _submission_token:RefCounted
 
 
 func _init(initial_context:Context=null) -> void:
 	context = initial_context if initial_context != null else Context.new()
 	context.host_data.get_or_add("clear_callback", _clear_from_command)
 	context.host_data.get_or_add("new_ctx_callback", _request_reset)
+	context.host_data["tui_begin"] = _begin_tui
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	_input_panel = PanelContainer.new()
@@ -91,6 +97,16 @@ func _ready() -> void:
 	_apply_theme()
 
 
+func _enter_tree() -> void:
+	_leaving_tree = false
+
+
+func _exit_tree() -> void:
+	_leaving_tree = true
+	if is_instance_valid(active_tui):
+		active_tui.close()
+
+
 func _notification(what:int) -> void:
 	if what == NOTIFICATION_THEME_CHANGED and is_node_ready():
 		_apply_theme()
@@ -109,12 +125,16 @@ func _apply_theme() -> void:
 		prompt_label.add_theme_font_size_override("normal_font_size", font_size)
 		input.add_theme_font_size_override("font_size", font_size)
 		_input_panel.custom_minimum_size.y = font_size + 12
+		if is_instance_valid(active_tui):
+			active_tui.display.add_theme_font_size_override("normal_font_size", font_size)
+			active_tui.hint.add_theme_font_size_override("font_size", font_size)
 
 
 func set_context(value:Context) -> void:
 	context = value if value != null else Context.new()
 	context.host_data.get_or_add("clear_callback", _clear_from_command) # A host's callback wins.
 	context.host_data.get_or_add("new_ctx_callback", _request_reset)
+	context.host_data["tui_begin"] = _begin_tui
 	input.context = context
 	last_result = null
 	update_prompt()
@@ -181,11 +201,20 @@ func execute(text:String) -> Context:
 
 	_set_busy(true)
 	var result = Context.new_ctx("Console submission", context)
+	_submission_token = RefCounted.new()
+	result.host_data["__tui_submission"] = _submission_token
 	_stream_begin(result)
 	if execution_handler.is_valid():
 		await execution_handler.call(command, result)
 	else:
 		await Execute.execute_command_multiline(command, result)
+	if is_instance_valid(active_tui):
+		active_tui.close()
+	_submission_token = null
+	if _leaving_tree:
+		result.clear_output_sink()
+		is_busy = false
+		return result
 	_stream_end(result)
 	_set_busy(false)
 	# `new_ctx` defers the swap so the running submission never straddles two sessions.
@@ -203,6 +232,70 @@ func execute(text:String) -> Context:
 	update_prompt()
 	command_finished.emit(command, result)
 	return result
+
+
+## Host callback inherited by command contexts. Captured stdout cannot acquire a UI.
+func _begin_tui(ctx:Context) -> TuiSession:
+	if not is_inside_tree() or _leaving_tree:
+		ctx.append_error("TUI: an interactive console view is required")
+		return null
+	if not ctx.execute or not is_busy or _submission_token == null \
+			or ctx.host_data.get("__tui_submission") != _submission_token:
+		ctx.append_error("TUI: only an active console submission can open a view")
+		return null
+	if ctx._capture_out > 0:
+		ctx.append_error("TUI: cannot open a view while stdout is captured")
+		return null
+	if is_instance_valid(active_tui):
+		ctx.append_error("TUI: a view is already active")
+		return null
+	var parent = _get_tui_parent()
+	if not is_visible_in_tree() or not is_instance_valid(parent) or not parent.is_inside_tree():
+		ctx.append_error("TUI: an interactive console view is required")
+		return null
+	_tui_hidden_controls.clear()
+	for control in _get_tui_controls_to_hide(parent):
+		if is_instance_valid(control):
+			_tui_hidden_controls.append([weakref(control), control.visible])
+			control.hide()
+	input._hide_completion()
+	input._timer.stop()
+	active_tui = TuiSession.new(self)
+	parent.add_child(active_tui)
+	parent.move_child(active_tui, 0)
+	if _font_override != null:
+		active_tui.display.add_theme_font_override("normal_font", _font_override)
+		active_tui.display.add_theme_font_override("mono_font", _font_override)
+		active_tui.hint.add_theme_font_override("font", _font_override)
+	var font_size = get_theme_font_size("font_size", "LineEdit")
+	active_tui.display.add_theme_font_size_override("normal_font_size", font_size)
+	active_tui.hint.add_theme_font_size_override("font_size", font_size)
+	active_tui.display.grab_focus()
+	return active_tui
+
+
+## Override to host a session outside this prompt (for example, in an editor dock).
+func _get_tui_parent() -> Control:
+	return self if is_instance_valid(output) else null
+
+
+func _get_tui_controls_to_hide(_parent:Control) -> Array[Control]:
+	return [_input_panel, output]
+
+
+func _end_tui(session:TuiSession) -> void:
+	if active_tui != session:
+		return
+	active_tui = null
+	session.hide()
+	# An external display must be restored even while the prompt itself is leaving.
+	for entry in _tui_hidden_controls:
+		var control = entry[0].get_ref()
+		if is_instance_valid(control):
+			control.visible = entry[1]
+	_tui_hidden_controls.clear()
+	if not _leaving_tree and input.is_visible_in_tree():
+		input.grab_focus()
 
 
 func create_output() -> RichTextLabel:
@@ -358,6 +451,10 @@ func _apply_font_override(font:Font) -> void:
 	if output != null:
 		output.add_theme_font_override("normal_font", font)
 		output.add_theme_font_override("mono_font", font)
+	if is_instance_valid(active_tui):
+		active_tui.display.add_theme_font_override("normal_font", font)
+		active_tui.display.add_theme_font_override("mono_font", font)
+		active_tui.hint.add_theme_font_override("font", font)
 
 
 func _remove_font_override() -> void:
@@ -366,6 +463,10 @@ func _remove_font_override() -> void:
 	if output != null:
 		output.remove_theme_font_override("normal_font")
 		output.remove_theme_font_override("mono_font")
+	if is_instance_valid(active_tui):
+		active_tui.display.remove_theme_font_override("normal_font")
+		active_tui.display.remove_theme_font_override("mono_font")
+		active_tui.hint.remove_theme_font_override("font")
 
 
 static func _default_prompt(ctx:Context) -> String:
@@ -379,6 +480,8 @@ func _on_submit_requested(text:String) -> void:
 	if is_busy:
 		return
 	await execute(text)
+	if _leaving_tree:
+		return
 	input.clear()
 	if input.is_inside_tree():
 		input.grab_focus()

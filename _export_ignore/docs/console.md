@@ -41,6 +41,14 @@ should call `discard_pending_stream()` when clearing; subclasses can override
   or a bare context. Use `reset_context()` or `set_context(context)` from code.
 - `echo_values = true`: show variable and alias previews in echoed commands.
 
+## Interactive views
+
+Commands extending `GDSh.TUICommand` can temporarily take over the display and input.
+The console restores its prompt, transcript, and focus when the command exits.
+
+See [Writing TUI commands](tui.md) for a complete selectable-list example, the
+`update()` / `view()` lifecycle, messages, scrolling, and `run()` for mixed-mode commands.
+
 ## Prompt and styling
 
 The default prompt is `Console $`, including `cwd` outside `res://`.

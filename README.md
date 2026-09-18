@@ -94,6 +94,7 @@ func _execute(ctx: GDSh.Context):
 
 - [Execution and contexts](_export_ignore/docs/execution.md)
 - [Runtime console](_export_ignore/docs/console.md)
+- [Writing TUI commands](_export_ignore/docs/tui.md)
 - [Language](_export_ignore/docs/language.md)
 - [Redirection](_export_ignore/docs/redirection.md)
 - [Commands and completion](_export_ignore/docs/commands.md)
