@@ -5,7 +5,7 @@ extends RefCounted
 
 const Options = preload("res://addons/addon_lib/gdsh/src/core/options.gd")
 
-const URClassDetail = UtilR.Objects.URClassDetail
+const UClassDetail = UtilR.Objects.UClassDetail
 
 const USAGE_TEMPLATE = \
 "Usage: script <class|path.gd> %s
@@ -55,7 +55,7 @@ static func resolve_access_path(access_path:String, ctx=null):
 			path = ctx.cwd.path_join(path).simplify_path()
 		base = _load_script(path)
 	else:
-		base = URClassDetail.get_global_class_script(parsed.base)
+		base = UClassDetail.get_global_class_script(parsed.base)
 	if not parsed.has_members:
 		return base
 	return resolve_members(base, parsed.members) if not parsed.members.is_empty() else null
@@ -152,7 +152,7 @@ static func get_members(target, kind:String, show_private:=false, inherited:=fal
 		var hint = {"methods": "method", "properties": "property", "signals": "signal",
 				"constants": "const", "enums": "enum"}.get(kind, "")
 		# Keep the nearest script declaration when it overrides an engine member.
-		members.merge(URClassDetail.get_members_of_base_type(base_type, [hint]))
+		members.merge(UClassDetail.get_members_of_base_type(base_type, [hint]))
 	if target is Node:
 		var live:Array = []
 		match kind:
@@ -185,7 +185,7 @@ static func _script_members(script:Script, kind:String, inherited:bool) -> Dicti
 			current = current.get_base_script() if inherited else null
 		if kind == "enums":
 			for name in members.keys():
-				if not members[name] is Dictionary or not URClassDetail.check_dict_is_enum(members[name]):
+				if not members[name] is Dictionary or not UClassDetail.check_dict_is_enum(members[name]):
 					members.erase(name)
 		return members
 	var getter = {"methods": "get_script_method_list", "signals": "get_script_signal_list",
