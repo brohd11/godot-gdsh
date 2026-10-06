@@ -1,11 +1,11 @@
 #! namespace GDSh class Context
 extends RefCounted
 
-const Context = preload("res://addons/addon_lib/gdsh/src/core/context.gd")
-const Types = preload("res://addons/addon_lib/gdsh/src/core/types.gd")
-const Undo = preload("res://addons/addon_lib/gdsh/src/core/undo.gd")
-const Utils = preload("res://addons/addon_lib/gdsh/src/core/utils.gd")
-const NodePaths = preload("res://addons/addon_lib/gdsh/src/core/node_paths.gd")
+const Context = preload("res://addons/_lib/gdsh/src/core/context.gd")
+const Types = preload("res://addons/_lib/gdsh/src/core/types.gd")
+const Undo = preload("res://addons/_lib/gdsh/src/core/undo.gd")
+const Utils = preload("res://addons/_lib/gdsh/src/core/utils.gd")
+const NodePaths = preload("res://addons/_lib/gdsh/src/core/node_paths.gd")
 const ExitCode = Types.ExitCode
 static var _clean_output_regex:RegEx
 
@@ -75,7 +75,7 @@ func _init(text:="", include_builtins:=true) -> void:
 	# Child contexts share their parent's session through the shallow host_data copy.
 	host_data["undo_session"] = Undo.Session.new()
 	if include_builtins:
-		scopes_hidden = ResourceLoader.load("res://addons/addon_lib/gdsh/src/core/load.gd").load_builtins()
+		scopes_hidden = ResourceLoader.load("res://addons/_lib/gdsh/src/core/load.gd").load_builtins()
 
 
 ## Load a command file or directory into this Context. New registrations replace
@@ -84,7 +84,7 @@ func load(path:String, hidden:=false) -> Dictionary:
 	var resolved = path
 	if not path.is_absolute_path():
 		resolved = cwd.path_join(path).simplify_path()
-	var loader = ResourceLoader.load("res://addons/addon_lib/gdsh/src/core/load.gd")
+	var loader = ResourceLoader.load("res://addons/_lib/gdsh/src/core/load.gd")
 	var loaded := {}
 	if resolved.get_extension().to_lower() == "gd":
 		var script = loader.load_command(resolved)
@@ -135,7 +135,7 @@ func _resolve_bare(name:String):
 	match name.get_extension().to_lower():
 		"gdsh": return _bare_scope("gdsh")
 		"gd": return _bare_scope("script")
-	var target_util = preload("res://addons/addon_lib/gdsh/src/core/target_util.gd")
+	var target_util = preload("res://addons/_lib/gdsh/src/core/target_util.gd")
 	if target_util.parse_script_target(name).is_file:
 		return _bare_scope("script")
 	# A class name never contains a slash, so a slashed token is a path, not a class.
@@ -183,13 +183,13 @@ func set_positional_args(path_or_name:String, args:Array):
 	positional_args = args
 
 func execute_parse():
-	var tokenizer = ResourceLoader.load("res://addons/addon_lib/gdsh/src/core/tokenizer.gd").new(self)
+	var tokenizer = ResourceLoader.load("res://addons/_lib/gdsh/src/core/tokenizer.gd").new(self)
 	tokenizer.execute = true
 	var token_data = tokenizer.parse_command_string_execute(raw_text)
 	unconsumed_tokens = token_data.expanded
 	_token_metadata = token_data.metadata
 	if not token_data.error.is_empty():
-		ResourceLoader.load("res://addons/addon_lib/gdsh/src/core/execute.gd")._parse_error(self, token_data.error)
+		ResourceLoader.load("res://addons/_lib/gdsh/src/core/execute.gd")._parse_error(self, token_data.error)
 	execute = true
 
 func tokens_empty_and_execute() -> bool:
@@ -327,7 +327,7 @@ func undo_action(name:String) -> Undo.Action:
 	return Undo.Action.new(name, get_undo_redo(), get_undo_session())
 
 func get_variable(name:String):
-	return ResourceLoader.load("res://addons/addon_lib/gdsh/src/core/tokenizer.gd").check_variable(name, self)
+	return ResourceLoader.load("res://addons/_lib/gdsh/src/core/tokenizer.gd").check_variable(name, self)
 
 func get_root_ctx():
 	var inherited = get_inherited_ctxs()
@@ -348,7 +348,7 @@ func get_inherited_ctxs():
 
 
 static func new_ctx(text:String, parent:Context=null, sub_shell:=false):
-	var ctx = ResourceLoader.load("res://addons/addon_lib/gdsh/src/core/context.gd").new(text, not is_instance_valid(parent))
+	var ctx = ResourceLoader.load("res://addons/_lib/gdsh/src/core/context.gd").new(text, not is_instance_valid(parent))
 	if is_instance_valid(parent):
 		if not sub_shell: # so that function definitions do not populate up
 			ctx.parent_ctx = parent

@@ -1,7 +1,7 @@
 #! namespace GDSh class TUICommand
-extends "res://addons/addon_lib/gdsh/src/core/command_base.gd"
+extends "res://addons/_lib/gdsh/src/core/command_base.gd"
 ## Override update(message) and view(); the base owns execution and the temporary view.
-const TUIMsg = preload("res://addons/addon_lib/gdsh/src/tui/tui_msg.gd")
+const TUIMsg = preload("res://addons/_lib/gdsh/src/tui/tui_msg.gd")
 
 signal _completed
 

@@ -1,8 +1,8 @@
 #! namespace GDSh class Options
 extends RefCounted
 
-const SELF = preload("res://addons/addon_lib/gdsh/src/core/options.gd")
-const Types = preload("res://addons/addon_lib/gdsh/src/core/types.gd")
+const SELF = preload("res://addons/_lib/gdsh/src/core/options.gd")
+const Types = preload("res://addons/_lib/gdsh/src/core/types.gd")
 const FlagType = Types.FlagType
 const ARG_DELIMITER = "--"
 
@@ -106,7 +106,7 @@ static func add_command_script_to_dict(command, dict:Dictionary):
 	var data = command.get_self_command_data()
 	if not data.has(&"get_command"):
 		data[&"get_command"] = func():
-			return load("res://addons/addon_lib/gdsh/src/core/load.gd").fresh(command).new()
+			return load("res://addons/_lib/gdsh/src/core/load.gd").fresh(command).new()
 	dict[command.get_command_name()] = data
 
 

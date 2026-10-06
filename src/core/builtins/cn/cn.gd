@@ -1,6 +1,6 @@
-extends "res://addons/addon_lib/gdsh/src/core/command_base.gd"
+extends "res://addons/_lib/gdsh/src/core/command_base.gd"
 
-const NodePaths = preload("res://addons/addon_lib/gdsh/src/core/node_paths.gd")
+const NodePaths = preload("res://addons/_lib/gdsh/src/core/node_paths.gd")
 
 const _HELP = \
 "Change the GDSh working node, the base for relative node paths (as cd is for file paths).

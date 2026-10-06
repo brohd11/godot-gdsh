@@ -1,6 +1,6 @@
 extends RefCounted
 ## UI-independent completion filtering and insertion shared by both console inputs.
-const Options = preload("res://addons/addon_lib/gdsh/src/core/options.gd")
+const Options = preload("res://addons/_lib/gdsh/src/core/options.gd")
 
 static func choices(request) -> Dictionary:
 	var result = request.get_completions().duplicate(true)

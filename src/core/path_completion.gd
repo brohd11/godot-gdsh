@@ -1,8 +1,8 @@
 extends RefCounted
 ## Filesystem completion and shell-safe insertion shared with node paths.
 
-const Options = preload("res://addons/addon_lib/gdsh/src/core/options.gd")
-const Paths = preload("res://addons/addon_lib/gdsh/src/core/paths.gd")
+const Options = preload("res://addons/_lib/gdsh/src/core/options.gd")
+const Paths = preload("res://addons/_lib/gdsh/src/core/paths.gd")
 
 
 static func files(path:String, cwd:String, raw_word:String="") -> Dictionary:

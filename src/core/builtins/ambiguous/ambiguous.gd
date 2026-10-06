@@ -1,4 +1,4 @@
-extends "res://addons/addon_lib/gdsh/src/core/command_base.gd"
+extends "res://addons/_lib/gdsh/src/core/command_base.gd"
 ## Reached when a bare name is both a registered global class and a node under `cwn`.
 ## Context.get_scope runs during completion and highlighting, so it must stay side-effect free
 ## and cannot report the clash itself; it routes here instead and the error surfaces on execution.

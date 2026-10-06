@@ -4,11 +4,11 @@ extends RefCounted
 ## Commands may `await` in `_execute`: every step awaits its command, so sequencing and status
 ## wait for completion. Input whose commands never pause still finishes in the calling frame.
 
-const Context = preload("res://addons/addon_lib/gdsh/src/core/context.gd")
-const Types = preload("res://addons/addon_lib/gdsh/src/core/types.gd")
-const Parser = preload("res://addons/addon_lib/gdsh/src/core/parser.gd")
-const Lexer = preload("res://addons/addon_lib/gdsh/src/core/lexer.gd")
-const Expansion = preload("res://addons/addon_lib/gdsh/src/core/expansion.gd")
+const Context = preload("res://addons/_lib/gdsh/src/core/context.gd")
+const Types = preload("res://addons/_lib/gdsh/src/core/types.gd")
+const Parser = preload("res://addons/_lib/gdsh/src/core/parser.gd")
+const Lexer = preload("res://addons/_lib/gdsh/src/core/lexer.gd")
+const Expansion = preload("res://addons/_lib/gdsh/src/core/expansion.gd")
 const _IS_LOOP_KEY = "__is_loop__"
 const _LOOP_BREAK_KEY = "__loop_break__"
 const _LOOP_CONTINUE_KEY = "__loop_continue__"
@@ -387,7 +387,7 @@ static func _dispatch(ctx:Context):
 ## Scope entries hold a command script or an existing command object.
 static func _instance(command):
 	if command is GDScript:
-		return load("res://addons/addon_lib/gdsh/src/core/load.gd").fresh(command).new()
+		return load("res://addons/_lib/gdsh/src/core/load.gd").fresh(command).new()
 	return command
 
 static func _call_function(name:String, ctx:Context, args:Array):

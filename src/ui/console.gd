@@ -1,8 +1,8 @@
 #! namespace GDSh class Console
-extends "res://addons/addon_lib/gdsh/src/ui/console_base.gd"
+extends "res://addons/_lib/gdsh/src/ui/console_base.gd"
 ## Instantiable GDSh prompt with an optional transcript.
 
-const ConsoleInput = preload("res://addons/addon_lib/gdsh/src/ui/console_input.gd")
+const ConsoleInput = preload("res://addons/_lib/gdsh/src/ui/console_input.gd")
 
 var prompt_row:HBoxContainer
 var prompt_label:RichTextLabel

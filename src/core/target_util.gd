@@ -3,7 +3,7 @@ extends RefCounted
 ## class name, a res://, user:// or absolute OS path, or a path relative to ctx.cwd.
 ## Member access walks through Script-valued constants. Hosts may supply a base Script directly.
 
-const Options = preload("res://addons/addon_lib/gdsh/src/core/options.gd")
+const Options = preload("res://addons/_lib/gdsh/src/core/options.gd")
 
 const UClassDetail = UtilR.Objects.UClassDetail
 

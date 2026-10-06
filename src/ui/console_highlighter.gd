@@ -2,11 +2,11 @@ extends SyntaxHighlighter
 ## Context-based console colors, adapted from editor_console's console_syntax.gd.
 ## Lexical spans keep highlighting literal and never evaluate shell input.
 
-const Context = preload("res://addons/addon_lib/gdsh/src/core/context.gd")
-const Lexer = preload("res://addons/addon_lib/gdsh/src/core/lexer.gd")
-const Utils = preload("res://addons/addon_lib/gdsh/src/core/utils.gd")
-const Palette = preload("res://addons/addon_lib/gdsh/src/ui/palette.gd")
-const Expansion = preload("res://addons/addon_lib/gdsh/src/core/expansion.gd")
+const Context = preload("res://addons/_lib/gdsh/src/core/context.gd")
+const Lexer = preload("res://addons/_lib/gdsh/src/core/lexer.gd")
+const Utils = preload("res://addons/_lib/gdsh/src/core/utils.gd")
+const Palette = preload("res://addons/_lib/gdsh/src/ui/palette.gd")
+const Expansion = preload("res://addons/_lib/gdsh/src/core/expansion.gd")
 const _COMPARISONS = ["[", "]", "==", "!="]
 const _PREVIEW_LENGTH = 20
 const _UNDEFINED_COLOR = Color("ff6b6b")

@@ -1,4 +1,4 @@
-extends "res://addons/addon_lib/gdsh/src/core/command_base.gd"
+extends "res://addons/_lib/gdsh/src/core/command_base.gd"
 ## Group the undo actions of many commands into one entry. The buffer is
 ## `ctx.host_data["undo_session"]`; the undo object comes from `host_data["undo_redo"]`.
 

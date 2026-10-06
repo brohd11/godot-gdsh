@@ -1,14 +1,14 @@
 #! namespace GDSh class CommandBase
 extends RefCounted
 
-const Types = preload("res://addons/addon_lib/gdsh/src/core/types.gd")
-const Context = preload("res://addons/addon_lib/gdsh/src/core/context.gd")
-const Completion = preload("res://addons/addon_lib/gdsh/src/core/completion.gd")
-const Execution = preload("res://addons/addon_lib/gdsh/src/core/execute.gd")
-const Options = preload("res://addons/addon_lib/gdsh/src/core/options.gd")
-const Paths = preload("res://addons/addon_lib/gdsh/src/core/paths.gd")
-const PathCompletion = preload("res://addons/addon_lib/gdsh/src/core/path_completion.gd")
-const Utils = preload("res://addons/addon_lib/gdsh/src/core/utils.gd")
+const Types = preload("res://addons/_lib/gdsh/src/core/types.gd")
+const Context = preload("res://addons/_lib/gdsh/src/core/context.gd")
+const Completion = preload("res://addons/_lib/gdsh/src/core/completion.gd")
+const Execution = preload("res://addons/_lib/gdsh/src/core/execute.gd")
+const Options = preload("res://addons/_lib/gdsh/src/core/options.gd")
+const Paths = preload("res://addons/_lib/gdsh/src/core/paths.gd")
+const PathCompletion = preload("res://addons/_lib/gdsh/src/core/path_completion.gd")
+const Utils = preload("res://addons/_lib/gdsh/src/core/utils.gd")
 const PRINT_DEBUG = Types.PRINT_DEBUG
 const _UNAMED = "UnamedCommand"
 
@@ -370,7 +370,7 @@ func _get_commands_in_dir(sort_priority:=true):
 	var path = get_script().resource_path
 	if path.get_file().get_basename() != path.get_base_dir().get_file():
 		return {} # Loose commands do not own their neighboring directories.
-	var loader = load("res://addons/addon_lib/gdsh/src/core/load.gd")
+	var loader = load("res://addons/_lib/gdsh/src/core/load.gd")
 	var scopes = loader.load_directory(get_script().resource_path.get_base_dir(), true)
 	var options = {}
 	for scope in scopes.values():

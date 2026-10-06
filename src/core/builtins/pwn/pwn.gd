@@ -1,4 +1,4 @@
-extends "res://addons/addon_lib/gdsh/src/core/command_base.gd"
+extends "res://addons/_lib/gdsh/src/core/command_base.gd"
 
 static func get_command_name() -> String:
 	return "pwn"

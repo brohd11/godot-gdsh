@@ -1,8 +1,8 @@
 extends SyntaxHighlighter
 ## SyntaxHighlighter wrapper around GDSh's self-contained script tokenizer.
 
-const Palette = preload("res://addons/addon_lib/gdsh/src/ui/palette.gd")
-const Logic = preload("res://addons/addon_lib/gdsh/src/ui/script_highlighter_logic.gd")
+const Palette = preload("res://addons/_lib/gdsh/src/ui/palette.gd")
+const Logic = preload("res://addons/_lib/gdsh/src/ui/script_highlighter_logic.gd")
 
 var palette := Palette.new()
 var _highlighter = Logic.new()

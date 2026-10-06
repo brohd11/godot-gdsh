@@ -1,4 +1,4 @@
-extends "res://addons/addon_lib/gdsh/src/core/command_base.gd"
+extends "res://addons/_lib/gdsh/src/core/command_base.gd"
 ## Clear the attached console. The host supplies `ctx.host_data["clear_callback"]`:
 ## `Callable(ctx:Context, history:bool)`, optionally returning an exit status.
 ## GDSh.Console provides one for its own transcript and history.

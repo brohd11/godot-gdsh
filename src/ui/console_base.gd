@@ -1,14 +1,14 @@
 extends VBoxContainer
 ## Shared session, output, and TUI lifecycle for console frontends.
 
-const Context = preload("res://addons/addon_lib/gdsh/src/core/context.gd")
-const Execute = preload("res://addons/addon_lib/gdsh/src/core/execute.gd")
-const FONT_LICENSE = "res://addons/addon_lib/gdsh/src/ui/assets/source_font.LICENSE.txt" #! dependency res://addons/plugin_exporter/licenses/source_font
-const SourceFont = preload("res://addons/addon_lib/gdsh/src/ui/assets/source_font.tres")
-const Highlighter = preload("res://addons/addon_lib/gdsh/src/ui/console_highlighter.gd")
-const ScriptHighlighter = preload("res://addons/addon_lib/gdsh/src/ui/script_highlighter.gd")
-const Palette = preload("res://addons/addon_lib/gdsh/src/ui/palette.gd")
-const TuiSession = preload("res://addons/addon_lib/gdsh/src/tui/tui_session.gd")
+const Context = preload("res://addons/_lib/gdsh/src/core/context.gd")
+const Execute = preload("res://addons/_lib/gdsh/src/core/execute.gd")
+const FONT_LICENSE = "res://addons/_lib/gdsh/src/ui/assets/source_font.LICENSE.txt" #! dependency res://addons/plugin_exporter/licenses/source_font
+const SourceFont = preload("res://addons/_lib/gdsh/src/ui/assets/source_font.tres")
+const Highlighter = preload("res://addons/_lib/gdsh/src/ui/console_highlighter.gd")
+const ScriptHighlighter = preload("res://addons/_lib/gdsh/src/ui/script_highlighter.gd")
+const Palette = preload("res://addons/_lib/gdsh/src/ui/palette.gd")
+const TuiSession = preload("res://addons/_lib/gdsh/src/tui/tui_session.gd")
 
 signal command_submitted(text:String)
 signal command_finished(text:String, result:Context)

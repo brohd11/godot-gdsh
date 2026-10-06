@@ -5,8 +5,8 @@ extends RefCounted
 ## Where `cwn` starts. In the editor this is the editor's own window, not the edited scene;
 ## a host that knows better sets `cwn` itself.
 const DEFAULT_CWN = "/root"
-const Options = preload("res://addons/addon_lib/gdsh/src/core/options.gd")
-const PathCompletion = preload("res://addons/addon_lib/gdsh/src/core/path_completion.gd")
+const Options = preload("res://addons/_lib/gdsh/src/core/options.gd")
+const PathCompletion = preload("res://addons/_lib/gdsh/src/core/path_completion.gd")
 
 
 ## The SceneTree root, or null when there is no SceneTree.

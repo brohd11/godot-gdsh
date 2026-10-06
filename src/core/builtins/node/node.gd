@@ -1,6 +1,6 @@
-extends "res://addons/addon_lib/gdsh/src/core/command_base.gd"
+extends "res://addons/_lib/gdsh/src/core/command_base.gd"
 
-const NodePaths = preload("res://addons/addon_lib/gdsh/src/core/node_paths.gd")
+const NodePaths = preload("res://addons/_lib/gdsh/src/core/node_paths.gd")
 
 const _HELP = \
 "Target a node in the SceneTree. Paths are absolute, or relative to the working node (see cn).
@@ -68,7 +68,7 @@ func _execute(ctx:Context):
 
 
 func _get_commands() -> Dictionary:
-	return preload("res://addons/addon_lib/gdsh/src/core/builtins/script/script.gd").get_target_commands()
+	return preload("res://addons/_lib/gdsh/src/core/builtins/script/script.gd").get_target_commands()
 
 
 func _get_completions(completion:Completion) -> Dictionary:

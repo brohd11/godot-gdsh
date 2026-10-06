@@ -1,11 +1,11 @@
 #! namespace GDSh class TerminalConsole
-extends "res://addons/addon_lib/gdsh/src/ui/console_base.gd"
+extends "res://addons/_lib/gdsh/src/ui/console_base.gd"
 ## Rich-text shell: one selectable transcript, with a separately owned command buffer.
-const InputModel = preload("res://addons/addon_lib/gdsh/src/ui/terminal_input.gd")
-const CaretEffect = preload("res://addons/addon_lib/gdsh/src/ui/terminal_caret_effect.gd")
-const Completion = preload("res://addons/addon_lib/gdsh/src/core/completion.gd")
-const CompletionModel = preload("res://addons/addon_lib/gdsh/src/ui/console_completion.gd")
-const CompletionPopup = preload("res://addons/addon_lib/gdsh/src/ui/completion_popup.gd")
+const InputModel = preload("res://addons/_lib/gdsh/src/ui/terminal_input.gd")
+const CaretEffect = preload("res://addons/_lib/gdsh/src/ui/terminal_caret_effect.gd")
+const Completion = preload("res://addons/_lib/gdsh/src/core/completion.gd")
+const CompletionModel = preload("res://addons/_lib/gdsh/src/ui/console_completion.gd")
+const CompletionPopup = preload("res://addons/_lib/gdsh/src/ui/completion_popup.gd")
 
 ## Editor hosts opt in to command-produced BBCode, matching their existing transcript.
 var output_bbcode:=false

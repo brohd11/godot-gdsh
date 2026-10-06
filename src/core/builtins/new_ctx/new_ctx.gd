@@ -1,4 +1,4 @@
-extends "res://addons/addon_lib/gdsh/src/core/command_base.gd"
+extends "res://addons/_lib/gdsh/src/core/command_base.gd"
 ## Reset the attached console's session. The host supplies `ctx.host_data["new_ctx_callback"]`:
 ## `Callable(ctx:Context)`, optionally returning an exit status. GDSh.Console provides one that
 ## rebuilds its context once the submission finishes. Like `exit`, the rest of the submission stops.

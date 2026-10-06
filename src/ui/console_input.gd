@@ -1,12 +1,12 @@
 extends CodeEdit
 ## Single-line CodeEdit with GDSh completion and console key handling.
 
-const CompletionPopup = preload("res://addons/addon_lib/gdsh/src/ui/completion_popup.gd")
-const CompletionModel = preload("res://addons/addon_lib/gdsh/src/ui/console_completion.gd")
-const Completion = preload("res://addons/addon_lib/gdsh/src/core/completion.gd")
-const Options = preload("res://addons/addon_lib/gdsh/src/core/options.gd")
-const ConsoleHighlighter = preload("res://addons/addon_lib/gdsh/src/ui/console_highlighter.gd")
-const SourceFont = preload("res://addons/addon_lib/gdsh/src/ui/assets/source_font.tres")
+const CompletionPopup = preload("res://addons/_lib/gdsh/src/ui/completion_popup.gd")
+const CompletionModel = preload("res://addons/_lib/gdsh/src/ui/console_completion.gd")
+const Completion = preload("res://addons/_lib/gdsh/src/core/completion.gd")
+const Options = preload("res://addons/_lib/gdsh/src/core/options.gd")
+const ConsoleHighlighter = preload("res://addons/_lib/gdsh/src/ui/console_highlighter.gd")
+const SourceFont = preload("res://addons/_lib/gdsh/src/ui/assets/source_font.tres")
 
 signal submit_requested(text:String)
 signal history_requested(direction:int)

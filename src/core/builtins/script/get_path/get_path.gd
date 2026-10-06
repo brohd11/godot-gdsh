@@ -1,6 +1,6 @@
-extends "res://addons/addon_lib/gdsh/src/core/command_base.gd"
+extends "res://addons/_lib/gdsh/src/core/command_base.gd"
 
-const TargetUtil = preload("res://addons/addon_lib/gdsh/src/core/target_util.gd")
+const TargetUtil = preload("res://addons/_lib/gdsh/src/core/target_util.gd")
 
 const _HELP = \
 "Print a script's resource path or a live node's absolute path.

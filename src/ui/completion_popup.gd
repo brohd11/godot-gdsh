@@ -1,7 +1,7 @@
 extends ScrollContainer
 
-const Options = preload("res://addons/addon_lib/gdsh/src/core/options.gd")
-const SourceFont = preload("res://addons/addon_lib/gdsh/src/ui/assets/source_font.tres")
+const Options = preload("res://addons/_lib/gdsh/src/core/options.gd")
+const SourceFont = preload("res://addons/_lib/gdsh/src/ui/assets/source_font.tres")
 
 signal choice_accepted(choice:String, data:Dictionary)
 

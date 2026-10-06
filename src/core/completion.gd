@@ -2,15 +2,15 @@
 extends RefCounted
 ## A UI-independent completion request. Routing operates on an isolated context.
 
-const Context = preload("res://addons/addon_lib/gdsh/src/core/context.gd")
-const Parser = preload("res://addons/addon_lib/gdsh/src/core/parser.gd")
-const Expansion = preload("res://addons/addon_lib/gdsh/src/core/expansion.gd")
-const Options = preload("res://addons/addon_lib/gdsh/src/core/options.gd")
-const Types = preload("res://addons/addon_lib/gdsh/src/core/types.gd")
-const Utils = preload("res://addons/addon_lib/gdsh/src/core/utils.gd")
-const NodePaths = preload("res://addons/addon_lib/gdsh/src/core/node_paths.gd")
-const PathCompletion = preload("res://addons/addon_lib/gdsh/src/core/path_completion.gd")
-const TargetUtil = preload("res://addons/addon_lib/gdsh/src/core/target_util.gd")
+const Context = preload("res://addons/_lib/gdsh/src/core/context.gd")
+const Parser = preload("res://addons/_lib/gdsh/src/core/parser.gd")
+const Expansion = preload("res://addons/_lib/gdsh/src/core/expansion.gd")
+const Options = preload("res://addons/_lib/gdsh/src/core/options.gd")
+const Types = preload("res://addons/_lib/gdsh/src/core/types.gd")
+const Utils = preload("res://addons/_lib/gdsh/src/core/utils.gd")
+const NodePaths = preload("res://addons/_lib/gdsh/src/core/node_paths.gd")
+const PathCompletion = preload("res://addons/_lib/gdsh/src/core/path_completion.gd")
+const TargetUtil = preload("res://addons/_lib/gdsh/src/core/target_util.gd")
 
 var raw_text:String
 var caret_col:int
@@ -77,7 +77,7 @@ func get_completions() -> Dictionary:
 		return {}
 	var command = scope.get(Types.ScopeDataKeys.SCRIPT)
 	if command is GDScript:
-		command = load("res://addons/addon_lib/gdsh/src/core/load.gd").fresh(command).new()
+		command = load("res://addons/_lib/gdsh/src/core/load.gd").fresh(command).new()
 	if not is_instance_valid(command) or not command.has_method("complete"):
 		return {}
 	var result

@@ -2,7 +2,7 @@ extends RefCounted
 ## Recursive-descent grammar: list -> logical chain -> pipeline -> command.
 ## Nodes and tokens are internal dictionaries; no execution occurs while parsing.
 
-const Lexer = preload("res://addons/addon_lib/gdsh/src/core/lexer.gd")
+const Lexer = preload("res://addons/_lib/gdsh/src/core/lexer.gd")
 var source:String
 var tokens:Array
 var pos:int = 0

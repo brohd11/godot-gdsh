@@ -1,4 +1,4 @@
-extends "res://addons/addon_lib/gdsh/src/core/command_base.gd"
+extends "res://addons/_lib/gdsh/src/core/command_base.gd"
 ## List visible and hidden commands in the current execution context.
 
 const _HELP = "List available visible and hidden GDSh commands."

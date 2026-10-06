@@ -1,6 +1,6 @@
-extends "res://addons/addon_lib/gdsh/src/core/command_base.gd"
+extends "res://addons/_lib/gdsh/src/core/command_base.gd"
 
-const TargetUtil = preload("res://addons/addon_lib/gdsh/src/core/target_util.gd")
+const TargetUtil = preload("res://addons/_lib/gdsh/src/core/target_util.gd")
 
 const _HELP = \
 "Target a GDScript: a global class name, a res:// / user:// / absolute path, or a path relative
@@ -71,10 +71,10 @@ func _set_script_access_path(new_path:String):
 static func get_target_commands() -> Dictionary:
 	var commands = {}
 	for command in [
-		preload("res://addons/addon_lib/gdsh/src/core/builtins/script/args/args.gd"),
-		preload("res://addons/addon_lib/gdsh/src/core/builtins/script/call/call.gd"),
-		preload("res://addons/addon_lib/gdsh/src/core/builtins/script/get_path/get_path.gd"),
-		preload("res://addons/addon_lib/gdsh/src/core/builtins/script/list/list.gd"),
+		preload("res://addons/_lib/gdsh/src/core/builtins/script/args/args.gd"),
+		preload("res://addons/_lib/gdsh/src/core/builtins/script/call/call.gd"),
+		preload("res://addons/_lib/gdsh/src/core/builtins/script/get_path/get_path.gd"),
+		preload("res://addons/_lib/gdsh/src/core/builtins/script/list/list.gd"),
 	]:
 		Options.add_command_script_to_dict(command, commands)
 	return commands
@@ -82,7 +82,7 @@ static func get_target_commands() -> Dictionary:
 
 func _get_commands() -> Dictionary:
 	var commands = get_target_commands()
-	Options.add_command_script_to_dict(preload("res://addons/addon_lib/gdsh/src/core/builtins/script/list_global/list_global.gd"), commands)
+	Options.add_command_script_to_dict(preload("res://addons/_lib/gdsh/src/core/builtins/script/list_global/list_global.gd"), commands)
 	return commands
 
 

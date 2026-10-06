@@ -4,7 +4,7 @@ A runtime shell and command engine for Godot 4.6+.
 
 ## Install
 
-Place the release contents in `res://addons/addon_lib/gdsh/`, or install with
+Place the release contents in `res://addons/_lib/gdsh/`, or install with
 [gdaddon](https://github.com/brohd11/gdaddon):
 
 In your project:
@@ -14,7 +14,7 @@ gdaddon install brohd11/godot-gdsh-lib-utils
 gdaddon install brohd11/godot-gdsh-lib-tree
 ```
 
-Optional command libraries install under `res://addons/addon_lib/gdsh_lib/`:
+Optional command libraries install under `res://addons/_lib/gdsh_lib/`:
 
 - [utils](https://github.com/brohd11/godot-gdsh-lib-utils): Unix-style text utilities.
 - [tree](https://github.com/brohd11/godot-gdsh-lib-tree): Add, remove, and inspect nodes.

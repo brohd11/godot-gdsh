@@ -1,4 +1,4 @@
-extends "res://addons/addon_lib/gdsh/src/core/command_base.gd"
+extends "res://addons/_lib/gdsh/src/core/command_base.gd"
 ## Discover and route to the bundled commands, independently of root overrides.
 
 const _HELP = "Built-in commands, also accessible directly by name."

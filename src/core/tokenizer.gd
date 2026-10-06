@@ -1,8 +1,8 @@
 extends RefCounted
 ## Compatibility helpers backed by the shared lexer, parser, and word expansion.
-const Lexer = preload("res://addons/addon_lib/gdsh/src/core/lexer.gd")
-const Parser = preload("res://addons/addon_lib/gdsh/src/core/parser.gd")
-const Expansion = preload("res://addons/addon_lib/gdsh/src/core/expansion.gd")
+const Lexer = preload("res://addons/_lib/gdsh/src/core/lexer.gd")
+const Parser = preload("res://addons/_lib/gdsh/src/core/parser.gd")
+const Expansion = preload("res://addons/_lib/gdsh/src/core/expansion.gd")
 var active_ctx
 var execute:bool = false
 

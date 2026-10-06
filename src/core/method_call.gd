@@ -3,7 +3,7 @@ extends RefCounted
 ## GDSh.Utils.Method. The target decides what is callable: a Script allows its static
 ## methods, and any other object (an instance, a node from the tree) allows its own.
 
-const Value = preload("res://addons/addon_lib/gdsh/src/core/value.gd")
+const Value = preload("res://addons/_lib/gdsh/src/core/value.gd")
 
 
 ## Method info (as from get_method_list) for `method` callable on `target`, or {}.
