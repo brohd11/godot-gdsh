@@ -73,6 +73,21 @@ add_child(console)
 console.create_output() # Optional output log above the prompt.
 ```
 
+## Serve commands to another program
+
+`GDSh.Host` runs one command at a time from an argument list, for a caller with its own
+shell syntax (such as mcp-sh-godot). `cd` and `cn` carry over between requests.
+
+```gdscript
+var host = GDSh.Host.new({"command_dirs": ["res://commands"]})
+host.host_commands()                                   # [{name, summary}]
+await host.host_help("greet")                          # full help text
+var result = await host.host_run(["greet", "--loud"])  # {stdout, stderr, exit_code}
+```
+
+A console shares its commands, context and queue by extending `GDSh.Host` and overriding
+`_get_scopes()`, `_create_root_ctx()` and `_run_serialized(work)`.
+
 ## Write a command
 
 ```gdscript

@@ -30,6 +30,23 @@ static func execute_command(text:String, params:Dictionary={}):
 	if params.get("sub_shell", false): ctx = Context.new_ctx("Subshell", ctx, true)
 	return await execute_command_multiline(text, ctx)
 
+## Run one command from an argument list, as an outside caller (a shell, an RPC) gives it:
+## argv[0] is the command name. Nothing is parsed or expanded and aliases do not apply. Dash
+## words are still flags, as in other shells.
+static func execute_argv(argv:Array, ctx:Context=null):
+	if ctx == null: ctx = Context.new()
+	if ctx.exit_requested or argv.is_empty(): return ctx
+	var command = Context.new_ctx("", ctx)
+	for arg in argv:
+		command.unconsumed_tokens.append(str(arg))
+		command._token_metadata.append({"raw": str(arg), "quoted": false, "literal": false})
+	command.execute = true
+	await _dispatch(command)
+	ctx.absorb_output(command.stdout)
+	ctx.absorb_error(command.stderr)
+	_set_status(ctx, command.exit_code)
+	return ctx
+
 static func source_file(file_path:String, parent_ctx:Context=null):
 	if parent_ctx == null: parent_ctx = Context.new()
 	if not file_path.is_absolute_path():

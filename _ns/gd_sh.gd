@@ -7,6 +7,7 @@ const Completion = preload("uid://bvqh57qm7jeuj") # res://addons/_lib/gdsh/src/c
 const Console = preload("uid://cefnxpuiau33t") # res://addons/_lib/gdsh/src/ui/console.gd
 const Context = preload("uid://dlf6o3kxnojob") # res://addons/_lib/gdsh/src/core/context.gd
 const Execute = preload("uid://bv7etgrqr2yur") # res://addons/_lib/gdsh/src/core/execute.gd
+const Host = preload("uid://bl80828v5wfl0") # res://addons/_lib/gdsh/src/core/host.gd
 const Load = preload("uid://c8so1oy2s8c5o") # res://addons/_lib/gdsh/src/core/load.gd
 const Options = preload("uid://cwho2drs24ri8") # res://addons/_lib/gdsh/src/core/options.gd
 const TUICommand = preload("uid://cctfsikg377e8") # res://addons/_lib/gdsh/src/tui/tui_command.gd
