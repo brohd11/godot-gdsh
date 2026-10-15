@@ -17,10 +17,10 @@ Command discovery supports exported `.gd` remaps.
 
 ## Validation
 
-From a project containing the separate plugin tests repository at `tests/gdsh/`:
+From the project root (the suite lives in `_export_ignore/test/`):
 
 ```sh
-python3 tests/gdsh/run_headless.py --godot godot --export
+python3 addons/_lib/gdsh/_export_ignore/test/run_headless.py --godot godot --export
 ```
 
 The runner builds an isolated GDSh project, checks dependencies, and runs the suite.

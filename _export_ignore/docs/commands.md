@@ -62,9 +62,9 @@ preferring visible entries, then the host resolver, then bare target resolution.
 `get_registered_scope()` stops before bare targets, for consumers such as highlighting.
 See [Language](language.md#builtins) for builtin namespaces.
 
-Directories accept loose `.gd` files and `name/name.gd` entries. Directory-backed
-commands discover `child/child.gd` subcommands; override `_get_commands()` for custom
-trees. A loose `manifest.gd` is skipped and may preload commands for export.
+Directories accept loose `.gd` files and `name/name.gd` entries. Every command
+discovers the `child/child.gd` subcommands beside it; override `_get_commands()` for
+custom trees. A loose `manifest.gd` is skipped and may preload commands for export.
 Loading is sorted, skips invalid commands, rejects later duplicate names within a
 directory, and uses Godot's cache (no hot reload).
 
@@ -72,10 +72,12 @@ directory, and uses Godot's cache (no hot reload).
 
 ```
 res://commands/              <- context.load("res://commands")
-├── greet.gd                 -> greet              loose file; a leaf command
+├── tools.gd                 -> tools              loose; owns the command dirs beside it
 ├── manifest.gd                                    skipped; preloads for exporters
+├── greet/
+│   └── greet.gd             -> greet, tools greet
 └── door/
-    ├── door.gd              -> door               name matches its directory
+    ├── door.gd              -> door, tools door   name matches its directory
     ├── door_util.gd                               helper; never a command
     └── open/
         ├── open.gd          -> door open
@@ -85,14 +87,14 @@ res://commands/              <- context.load("res://commands")
 
 Only the load root turns loose `.gd` files into commands. Below it, a command
 discovers children from subdirectories alone, so neighboring `.gd` files (like
-`door_util.gd`) are free to be shared helpers. Nesting repeats one rule at every
-level: a directory contributes a command only through the `name/name.gd` file that
-matches it, and that file owns everything under it.
+`door_util.gd`) are free to be shared helpers. One rule repeats at every level: a
+command owns the `name/name.gd` directories beside it, whether it is loose or matches
+its own directory. Loading the root above registers `greet` and `door` at the top
+level and again under `tools`.
 
-A loose script never adopts a sibling directory of the same name — `greet.gd`
-beside `greet/` stays a leaf and `greet/`'s contents are ignored. Move it to
-`greet/greet.gd` to give an existing command subcommands. Children sort by their
-`&"priority"` command data key, then by name.
+Because a loose command claims all its sibling directories, give each namespace its
+own folder (`src/utils/`, `src/other/`) rather than placing several loose commands
+in one. Children sort by their `&"priority"` command data key, then by name.
 
 Command data describes help, flags, positional counts, and `--` payloads.
 `GDSh.Options` builds routing and completion dictionaries. Setting

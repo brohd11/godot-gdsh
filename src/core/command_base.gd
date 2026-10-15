@@ -366,12 +366,14 @@ func get_commands(hide_consumed:=false) -> Dictionary:
 func _get_commands() -> Dictionary:
 	return _get_commands_in_dir()
 
+## Loose or not, a command owns the name/name.gd dirs beside it, so each namespace gets its own folder.
+## An in-memory command has no path; "" would list the process cwd.
 func _get_commands_in_dir(sort_priority:=true):
 	var path = get_script().resource_path
-	if path.get_file().get_basename() != path.get_base_dir().get_file():
-		return {} # Loose commands do not own their neighboring directories.
+	if path.is_empty():
+		return {}
 	var loader = load("res://addons/_lib/gdsh/src/core/load.gd")
-	var scopes = loader.load_directory(get_script().resource_path.get_base_dir(), true)
+	var scopes = loader.load_directory(path.get_base_dir(), true)
 	var options = {}
 	for scope in scopes.values():
 		Options.add_command_script_to_dict(scope[Types.ScopeDataKeys.SCRIPT], options)
