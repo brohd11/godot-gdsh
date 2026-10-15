@@ -112,7 +112,7 @@ static func is_string_or_string_name(text:String):
 		text = text.trim_prefix("&")
 	return (text.begins_with("'") and text.ends_with("'")) or (text.begins_with('"') and text.ends_with('"'))
 
-#! using ALibRuntime.Utils.USort.sort_dict_with_priority_key()
+#! using UtilR.Collections.USort.sort_dict_with_priority_key()
 static func sort_dict_with_priority_key(dict:Dictionary, priority_key) -> Dictionary:
 	var keys = dict.keys()
 	# basic sort of priorities with ref to key
