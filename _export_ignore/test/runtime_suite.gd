@@ -47,6 +47,7 @@ func run_sync():
 	_test_script_target()
 	_test_target_members()
 	_test_script_access()
+	_test_builtin_path_completion()
 	_test_pwn()
 	_test_list_global()
 	_test_completion()
@@ -480,14 +481,15 @@ func _test_builtins():
 	for text in ["", "bui"]:
 		var choices = complete(text, ctx)
 		check(not choices.has("builtins") and not choices.has("echo"), "builtins omitted from root completion: " + text)
-	var public_names = ["break", "continue", "return", "exit", "shift", "true", "false", "[", "expr", "echo", "source", "cd", "cn", "pwn", "node", "gdsh", "script", "help", "hidden", "clear", "new_ctx", "undoredo"]
+	var required_names = ["break", "continue", "return", "exit", "shift", "true", "false", "[", "expr", "echo", "source", "cd", "cn", "pwn", "node", "gdsh", "script", "help", "hidden", "clear", "new_ctx", "undoredo", "wait"]
 	var choices = complete("builtins ", ctx)
 	var children = ctx.get_scope("builtins").script.new().get_commands()
-	equal(children.size(), public_names.size(), "parent discovers only public builtins")
-	for name in public_names:
-		check(children.has(name) and choices.has(name), "builtin child routing and completion: " + name)
+	for name in required_names:
+		check(children.has(name), "parent discovers required builtin: " + name)
+	for name in children:
+		check(choices.has(name), "builtin child completion: " + name)
 	for name in ["__function__", "__ambiguous__"]:
-		check(ctx.scopes_hidden.has(name) and not choices.has(name), "internal builtin remains registered but is not suggested: " + name)
+		check(ctx.scopes_hidden.has(name) and not children.has(name) and not choices.has(name), "internal builtin remains registered but is not suggested: " + name)
 	check(complete("builtins ec", ctx).has("echo"), "partial builtin child completion")
 	ctx.cwd = COMMANDS
 	check(complete("builtins cd ", ctx).has("door"), "builtin child delegates directory completion")
@@ -495,7 +497,7 @@ func _test_builtins():
 	var listing = run_text("builtins")
 	equal(listing.exit_code, 0, "bare builtins succeeds")
 	check(listing.stdout.contains("Subcommands:"), "bare builtins lists children")
-	for name in public_names:
+	for name in children:
 		check((listing.stdout + "\n").contains("\n  " + name + "\n"), "builtin listing includes: " + name)
 	check(not listing.stdout.contains("__function__") and not listing.stdout.contains("__ambiguous__"), "builtin help omits internals")
 	equal(run_text("builtins --help").stdout, listing.stdout, "explicit parent help matches listing")
@@ -2192,6 +2194,36 @@ func _test_target_members():
 	for subcommand in ["call", "list", "args", "get_path"]:
 		check(complete(node_head + " ", ctx).has(subcommand), "node completes " + subcommand)
 	node.free()
+
+
+func _test_builtin_path_completion():
+	var ctx = session()
+	ctx.cwd = FIXTURES
+	for text in ["source ./", "builtins source ./"]:
+		check(complete(text, ctx).has("hello.gdsh"), "source completes filesystem paths: " + text)
+	check(not complete("cd ./", ctx).has("hello.gdsh"), "cd completion remains directory-only")
+	for path in ["./", "../fixtures/", FIXTURES, "dotted.gd.folder/"]:
+		var name = "target file.gd" if path == "dotted.gd.folder/" else "hello.gdsh"
+		for prefix in ["script ", "builtins script "]:
+			check(complete(prefix + path, ctx).has(name), "script completes filesystem paths: " + prefix + path)
+	var absolute_path = ProjectSettings.globalize_path(FIXTURES)
+	if absolute_path.is_absolute_path():
+		check(complete('script "' + absolute_path, ctx).has("hello.gdsh"), "script completes absolute paths")
+	var quoted = complete('script "./dotted.gd.folder/tar', ctx)
+	check(quoted.has("target file.gd"), "script completes quoted path target")
+	if quoted.has("target file.gd"):
+		equal(quoted["target file.gd"][Sh.Options.Keys.METADATA][Sh.Options.Keys.INSERT], '"./dotted.gd.folder/target file.gd"', "script preserves path prefix and quoting")
+	check(complete('script "./dotted.gd.folder/target file.gd" ', ctx).has("call"), "completed script target offers subcommands")
+	check(complete("script GDShAcc", ctx).has("GDShAccessFixture"), "script retains global class completion")
+	check(complete("script GDShAccessFixture.", ctx).has("Inner"), "script retains member completion")
+	check(complete("script --class=", ctx).has("GDShAccessFixture"), "script retains class flag completion")
+	check(complete("script --path=", ctx).has(FIXTURES + "method_target.gd"), "script retains path flag completion")
+	var user_dir = "user://gdsh-script-path-completion-%s" % Time.get_ticks_usec()
+	equal(DirAccess.make_dir_recursive_absolute(user_dir), OK, "create user script completion fixture")
+	_write_file(user_dir.path_join("target.gd"), "extends RefCounted\n")
+	check(complete("script " + user_dir + "/", ctx).has("target.gd"), "script completes user paths")
+	equal(DirAccess.remove_absolute(user_dir.path_join("target.gd")), OK, "remove user script completion file")
+	equal(DirAccess.remove_absolute(user_dir), OK, "remove user script completion directory")
 
 
 func _test_script_access():

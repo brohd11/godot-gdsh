@@ -111,6 +111,8 @@ func _get_completions(ctx:Completion):
 		var parsed = TargetUtil.parse_script_target(script_access_path)
 		if parsed.has_members:
 			return _format_target_choices(TargetUtil.complete_access_path(script_access_path, ctx.context), token)
+		if parsed.is_file or script_access_path.contains("/") or script_access_path.is_absolute_path():
+			return PathCompletion.files(script_access_path, ctx.context.cwd, token)
 		return _target_choices(ctx.context, script_access_path)
 	var commands = get_commands(true)
 	commands.merge(get_flags(true))
