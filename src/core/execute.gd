@@ -9,6 +9,7 @@ const Types = preload("res://addons/_lib/gdsh/src/core/types.gd")
 const Parser = preload("res://addons/_lib/gdsh/src/core/parser.gd")
 const Lexer = preload("res://addons/_lib/gdsh/src/core/lexer.gd")
 const Expansion = preload("res://addons/_lib/gdsh/src/core/expansion.gd")
+const Utils = preload("res://addons/_lib/gdsh/src/core/utils.gd")
 const _IS_LOOP_KEY = "__is_loop__"
 const _LOOP_BREAK_KEY = "__loop_break__"
 const _LOOP_CONTINUE_KEY = "__loop_continue__"
@@ -404,7 +405,7 @@ static func _dispatch(ctx:Context):
 ## Scope entries hold a command script or an existing command object.
 static func _instance(command):
 	if command is GDScript:
-		return load("res://addons/_lib/gdsh/src/core/load.gd").fresh(command).new()
+		return Utils.get_loader().fresh(command).new()
 	return command
 
 static func _call_function(name:String, ctx:Context, args:Array):

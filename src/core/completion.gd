@@ -77,7 +77,7 @@ func get_completions() -> Dictionary:
 		return {}
 	var command = scope.get(Types.ScopeDataKeys.SCRIPT)
 	if command is GDScript:
-		command = load("res://addons/_lib/gdsh/src/core/load.gd").fresh(command).new()
+		command = Utils.get_loader().fresh(command).new()
 	if not is_instance_valid(command) or not command.has_method("complete"):
 		return {}
 	var result

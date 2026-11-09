@@ -125,3 +125,6 @@ combines scrollback, prompt, and editable command display in one RichTextLabel.
 input, highlighting and font assets; and `tui/` for command/session protocols.
 `_export_ignore/` contains documentation and export tooling. Distribute the whole
 package, including UID sidecars; callers should prefer `GDSh.*` over source paths.
+
+Core code uses `GDSh.Utils.get_loader()` for lazy loader access. Its single `#! dependency` tag
+lets GDPackage bundle and relocate the loader when exporting a command without the full host.

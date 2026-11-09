@@ -75,7 +75,7 @@ func _init(text:="", include_builtins:=true) -> void:
 	# Child contexts share their parent's session through the shallow host_data copy.
 	host_data["undo_session"] = Undo.Session.new()
 	if include_builtins:
-		scopes_hidden = ResourceLoader.load("res://addons/_lib/gdsh/src/core/load.gd").load_builtins()
+		scopes_hidden = Utils.get_loader().load_builtins()
 
 
 ## Load a command file or directory into this Context. New registrations replace
@@ -84,7 +84,7 @@ func load(path:String, hidden:=false) -> Dictionary:
 	var resolved = path
 	if not path.is_absolute_path():
 		resolved = cwd.path_join(path).simplify_path()
-	var loader = ResourceLoader.load("res://addons/_lib/gdsh/src/core/load.gd")
+	var loader = Utils.get_loader()
 	var loaded := {}
 	if resolved.get_extension().to_lower() == "gd":
 		var script = loader.load_command(resolved)

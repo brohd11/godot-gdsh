@@ -349,6 +349,8 @@ func output(text:String):
 	return run_text(text).stdout.strip_edges()
 
 func _test_utils():
+	check(Sh.Utils.get_loader() == Sh.Load, "lazy loader uses the shared loader script")
+	check(Sh.Utils.get_loader() == Sh.Utils.get_loader(), "lazy loader preserves resource caching")
 	for sample in [
 		["plain", "plain", false],
 		["", "", false],

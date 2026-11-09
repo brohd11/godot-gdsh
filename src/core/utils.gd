@@ -9,6 +9,11 @@ const Value = preload("res://addons/_lib/gdsh/src/core/value.gd")
 ## Checked method calls on a Script (static) or any object: Method.call_method(ctx, target, name, args).
 const Method = preload("res://addons/_lib/gdsh/src/core/method_call.gd")
 
+## Lazy to avoid the loader's CommandBase preload cycle; the tag keeps relocated copies complete.
+static func get_loader():
+	return load("res://addons/_lib/gdsh/src/core/load.gd") #! dependency
+
+
 ## Whether a scope entry appears in top-level listings (root completion, `hidden`, `help`).
 ## Commands opt out with `&"discoverable": false`; namespace commands list them regardless.
 static func is_discoverable(scope) -> bool:

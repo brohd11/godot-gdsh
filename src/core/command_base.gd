@@ -372,7 +372,7 @@ func _get_commands_in_dir(sort_priority:=true):
 	var path = get_script().resource_path
 	if path.is_empty():
 		return {}
-	var loader = load("res://addons/_lib/gdsh/src/core/load.gd")
+	var loader = Utils.get_loader()
 	var scopes = loader.load_directory(path.get_base_dir(), true)
 	var options = {}
 	for scope in scopes.values():
