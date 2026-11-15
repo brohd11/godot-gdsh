@@ -1,0 +1,16 @@
+# Tests this package with GDPackage: its suites, as pushed, against its requires at their
+# tags - so a pass means the declared requires are enough. Add Godot builds to test on more.
+name: test
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  test:
+    uses: brohd11/godot-gdpackage/.github/workflows/package-test.yml@main
+    with:
+      godot-versions: '["4.7-stable"]'
+    # For private dependencies: a token that can read them, kept as a secret of this repo.
+    # secrets:
+    #   deps-token: ${{ secrets.GDPACKAGE_DEPS_TOKEN }}
