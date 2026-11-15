@@ -2,7 +2,7 @@ extends "res://addons/_lib/gdsh/src/core/command_base.gd"
 
 const _HELP = \
 "Await a timer, then report the elapsed time. Exercises async command execution.
-Usage: dev wait <seconds> [label]"
+Usage: wait <seconds> [label]"
 
 static func get_command_name():
 	return "wait"
@@ -11,6 +11,7 @@ static func get_self_command_data():
 	return _command_data({
 		&"help": _HELP,
 		&"positional_count": "min:1,max:2",
+		&"discoverable": false,
 	})
 
 func _execute(ctx:Context):

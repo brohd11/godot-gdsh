@@ -320,6 +320,7 @@ func _stream_chunk(text:String, is_error:bool) -> void:
 		output.add_text("stderr:\n")
 	output.add_text(text)
 	output.pop()
+	_seal_output()
 
 
 ## The part of a buffer the sink never showed: empty once streaming displayed all of it, and the
@@ -445,6 +446,7 @@ func _append_command(command:String) -> void:
 	if output == null:
 		return
 	output.append_text(_prompt_bbcode + " " + format_command(command) + "\n")
+	_seal_output()
 
 
 func _append_result(result:Context) -> void:
@@ -460,7 +462,15 @@ func _append_result(result:Context) -> void:
 			output.add_text("stderr:\n")
 		output.add_text(err_tail)
 		output.pop()
+		_seal_output()
 	_scroll_after_output()
+
+
+## Godot 4.7 select_all() ends on the line where the last item's top-level container began, so a
+## multi-line block truncates Cmd+A. An empty top-level item keeps the end on the final line.
+func _seal_output() -> void:
+	output.push_color(output.get_theme_color("default_color"))
+	output.pop()
 
 
 func _scroll_after_output() -> void:

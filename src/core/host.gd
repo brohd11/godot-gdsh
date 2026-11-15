@@ -17,6 +17,8 @@ extends RefCounted
 const Context = preload("res://addons/_lib/gdsh/src/core/context.gd")
 const Execute = preload("res://addons/_lib/gdsh/src/core/execute.gd")
 const Load = preload("res://addons/_lib/gdsh/src/core/load.gd")
+# Ships the builtins in exports; Load reaches them by an untagged path.
+const _BuiltinScripts = preload("res://addons/_lib/gdsh/src/core/builtin_scripts.gd")
 const Types = preload("res://addons/_lib/gdsh/src/core/types.gd")
 
 ## Empty until a request ends, so the first request starts from the root ctx's own defaults.

@@ -4,7 +4,6 @@ extends RefCounted
 const Types = preload("res://addons/_lib/gdsh/src/core/types.gd")
 const Context = preload("res://addons/_lib/gdsh/src/core/context.gd")
 const Completion = preload("res://addons/_lib/gdsh/src/core/completion.gd")
-const Execution = preload("res://addons/_lib/gdsh/src/core/execute.gd")
 const Options = preload("res://addons/_lib/gdsh/src/core/options.gd")
 const Paths = preload("res://addons/_lib/gdsh/src/core/paths.gd")
 const PathCompletion = preload("res://addons/_lib/gdsh/src/core/path_completion.gd")
@@ -348,7 +347,7 @@ func _flag_set_var(flag:String):
 	if target_type == TYPE_NIL:
 		set(var_name, val)
 		return
-	var converted = GDSh.Utils.Value.convert(val, target_type)
+	var converted = Utils.Value.convert(val, target_type)
 	if converted == null:
 		_ctx_obj.append_error("Invalid value for %s%s (expected %s)" % [_split_flag(flag), val, type_string(target_type)])
 		return ExitCode.ERR

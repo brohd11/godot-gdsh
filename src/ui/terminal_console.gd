@@ -172,6 +172,7 @@ func _render_tail() -> void:
 	output.append_text(_format_input(input_model.text))
 	output.pop() # effect
 	output.pop() # paragraph
+	_seal_output()
 	_rendered_input = input_model.text
 	_caret_effect.character = _input_start + input_model.caret
 	output.get_v_scroll_bar().value = scroll
@@ -251,6 +252,7 @@ func _stream_chunk(text:String, is_error:bool) -> void:
 		output.add_text(text)
 	if is_error:
 		output.pop()
+	_seal_output()
 
 
 func clear_output() -> void:

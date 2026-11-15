@@ -1,4 +1,5 @@
 extends "res://addons/_lib/gdsh/src/core/command_base.gd"
+const Execution = preload("res://addons/_lib/gdsh/src/core/execute.gd")
 
 
 const _HELP = \

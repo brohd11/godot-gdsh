@@ -1,6 +1,8 @@
 extends "res://addons/_lib/gdsh/src/core/command_base.gd"
 ## Discover and route to every hidden command registered in the current context.
 
+const Execution = preload("res://addons/_lib/gdsh/src/core/execute.gd")
+
 const _HELP = "Hidden commands, also accessible directly by name."
 
 

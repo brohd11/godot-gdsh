@@ -10,6 +10,11 @@ The package export configuration keeps the public `GDSh` namespace in `_ns/`
 and implementation in `src/`, preserving the source layout. GDSh is excluded
 from global-class renaming; dependencies may still be bundled under `src/remote/`.
 
+A plugin that only implements commands bundles just what `CommandBase` needs to compile
+and discover subcommands. The builtins and `execute.gd` ship only when `GDSh.Host` is
+referenced; without it, `Load.load_builtins()` reports an error and returns `{}`.
+Commands that need the engine preload `GDSh.Execute` themselves (`CommandBase.Execution`
+was removed in 0.4.0).
 
 Include dynamically loaded command scripts and `.gdsh` files. For example,
 export all resources and add `*.gdsh` to the non-resource include filter.

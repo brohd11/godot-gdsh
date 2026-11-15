@@ -468,6 +468,12 @@ func _test_loading():
 	check(run_text("tui_demo").stderr.contains("Unrecognized command"), "documentation demo is not executable by default")
 	check(builtins.has("help") and builtins.has("clear"), "help and clear are builtins")
 	check(builtins.has("builtins") and builtins.has("hidden"), "builtins and hidden namespaces are registered")
+	# Every script under builtins/ is in the list; wait sat unregistered until 0.4.0.
+	var listed = builtins.values().map(func(scope): return scope.script.resource_path)
+	for dir in DirAccess.get_directories_at("res://addons/_lib/gdsh/src/core/builtins"):
+		var path = "res://addons/_lib/gdsh/src/core/builtins/%s/%s.gd" % [dir, dir]
+		if ResourceLoader.exists(path):
+			check(path in listed, "builtin registered: " + dir)
 	for name in ["os", "global", "cat", "pwd"]:
 		check(not builtins.has(name), "excluded command: " + name)
 	print("Expected loader diagnostics follow:")

@@ -56,6 +56,7 @@ and session management. They are callable directly but hidden from root completi
   script targets also accept `.Inner.Nested` suffixes.
 - `script list_global` lists and filters global classes without a target.
 - `pwn` prints the stored working-node path.
+- `wait <seconds> [label]` awaits a timer and reports the elapsed time and frames.
 - `cd <path>` changes `cwd`; `cn <path>` changes `cwn` for relative node paths.
 - `builtins` lists bundled commands; `builtins echo hello` bypasses host overrides.
 - `hidden` lists discoverable hidden commands, including `builtins`.

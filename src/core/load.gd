@@ -5,34 +5,6 @@ extends RefCounted
 const Paths = preload("res://addons/_lib/gdsh/src/core/paths.gd")
 const Types = preload("res://addons/_lib/gdsh/src/core/types.gd")
 const CommandBase = preload("res://addons/_lib/gdsh/src/core/command_base.gd")
-# Explicit dependencies keep builtin scripts reachable in relocated plugin exports.
-const BUILTIN_SCRIPTS = [
-	preload("res://addons/_lib/gdsh/src/core/builtins/builtins.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/hidden/hidden.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/clear/clear.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/new_ctx/new_ctx.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/break/break.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/continue/continue.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/return/return.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/exit/exit.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/shift/shift.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/true/true.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/false/false.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/comparison/comparison.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/expr/expr.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/echo/echo.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/source/source.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/cd/cd.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/cn/cn.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/pwn/pwn.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/node/node.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/script/script.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/ambiguous/ambiguous.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/help/help.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/function/function.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/gdsh/gdsh.gd"),
-	preload("res://addons/_lib/gdsh/src/core/builtins/undoredo/undoredo.gd"),
-]
 
 
 ## Returns null and reports an error for an invalid command.
@@ -91,8 +63,11 @@ static func load_directory(path:String, child_directories_only:=false) -> Dictio
 		scopes[name] = {Types.ScopeDataKeys.SCRIPT: script}
 	return scopes
 
+## Untagged on purpose: a command-only export skips the builtins. GDSh.Host preloads the list,
+## which ships it and rewrites this path along with it. Inline in load() so it stays absolute.
 static func load_builtins() -> Dictionary:
-	var scopes = {}
-	for script in BUILTIN_SCRIPTS:
-		scopes[script.get_command_name()] = {Types.ScopeDataKeys.SCRIPT: script}
-	return scopes
+	var script = load("res://addons/_lib/gdsh/src/core/builtin_scripts.gd")
+	if script == null:
+		push_error("GDSh.Load: builtins not exported; reference GDSh.Host to ship them")
+		return {}
+	return script.load_builtins()
