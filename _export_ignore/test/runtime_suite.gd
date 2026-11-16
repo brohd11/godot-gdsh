@@ -4,6 +4,7 @@ extends RefCounted
 const Sh = preload("res://addons/_lib/gdsh/_ns/gd_sh.gd")
 const Utils = preload("res://addons/_lib/gdsh/src/core/utils.gd")
 const NodePaths = preload("res://addons/_lib/gdsh/src/core/node_paths.gd")
+const CompletionModel = preload("res://addons/_lib/gdsh/src/ui/console_completion.gd")
 const FIXTURES = "res://addons/_lib/gdsh/_export_ignore/test/fixtures/"
 const COMMANDS = FIXTURES + "commands/"
 const OVERRIDES = FIXTURES + "overrides/"
@@ -977,6 +978,15 @@ func _test_completion():
 	check(complete("probe --mode=fast one ").has("route:fast:1:-1:one"), "routed flag and positional index")
 	check(complete("probe -- payload ").has("route:default:-1:1:"), "payload index")
 	check(complete("probe --mo").has("--mode="), "partial flag completion")
+	var ranked = {"remove": {}, "--mode=": {}, "Move": {}, "move": {}, "#sep-&|-Group": {}}
+	equal(CompletionModel.best_match(ranked, "mo"), "move", "best match prefers a case-sensitive prefix")
+	equal(CompletionModel.best_match(ranked, "MOVE"), "Move", "best match prefers exact matches, ties keep list order")
+	equal(CompletionModel.best_match(ranked, "--m"), "--mode=", "best match finds flag prefixes")
+	equal(CompletionModel.best_match(ranked, "rmv"), "remove", "best match falls back to subsequence")
+	equal(CompletionModel.best_match(ranked, ""), "", "empty word keeps the first row")
+	equal(CompletionModel.best_match(ranked, "#s"), "", "separators are never preselected")
+	var labelled = {"@a = [x]": {Sh.Options.Keys.METADATA: {Sh.Options.Keys.INSERT: "@a"}}, "@b = [y]": {Sh.Options.Keys.METADATA: {Sh.Options.Keys.INSERT: "@b"}}}
+	equal(CompletionModel.best_match(labelled, "@b"), "@b = [y]", "best match checks inserted text")
 	var ctx = session()
 	ctx.variables["$TARGET"] = "door"
 	ctx.aliases["@d"] = "door"
@@ -1732,6 +1742,15 @@ func _test_console_popup_navigation() -> void:
 		key.echo = false
 		input._on_gui_input(key)
 	equal(history, [-1, 1], "initial arrows still navigate command history")
+
+	# A typed word preselects its best match, not the first row.
+	# `choice_04` is the first filtered row; `choice_40` is the first prefix hit.
+	input.text = "choice_4"
+	input.set_caret_column(input.text.length())
+	await input.request_completion(true)
+	input._timer.stop()
+	var selected = popup._items.get_selected_items()
+	equal(popup._items.get_item_text(selected[0]) if not selected.is_empty() else "", "choice_40", "popup preselects the best match")
 	console.queue_free()
 	await _tree().process_frame
 

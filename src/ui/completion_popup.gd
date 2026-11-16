@@ -24,7 +24,8 @@ func _init() -> void:
 	add_child(_items)
 
 
-func set_choices(choices:Dictionary, generation:int) -> bool:
+## `preferred` is the choice key to preselect (see CompletionModel.best_match).
+func set_choices(choices:Dictionary, generation:int, preferred:="") -> bool:
 	_generation = generation
 	var new_hash = choices.hash()
 	modulate.a = 0.0
@@ -49,10 +50,8 @@ func set_choices(choices:Dictionary, generation:int) -> bool:
 				icon = icon[0]
 			_items.add_item(str(choice), icon if icon is Texture2D else null)
 			_items.set_item_metadata(_items.item_count - 1, data)
-		for index in _items.item_count:
-			if not _items.is_item_disabled(index):
-				_items.select(index)
-				break
+	# Outside the rebuild: a new needle can keep the same choices but move the best match.
+	_select_preferred(preferred)
 	await get_tree().process_frame
 	if generation != _generation:
 		return false
@@ -84,6 +83,20 @@ func set_choices(choices:Dictionary, generation:int) -> bool:
 	modulate.a = 1.0
 	_scroll_to_selection_after_layout(generation)
 	return true
+
+
+func _select_preferred(preferred:String) -> void:
+	var fallback = -1
+	for index in _items.item_count:
+		if _items.is_item_disabled(index):
+			continue
+		if str(_choices[index]) == preferred:
+			_items.select(index)
+			return
+		if fallback == -1:
+			fallback = index
+	if fallback != -1:
+		_items.select(fallback)
 
 
 func cancel_pending() -> void:

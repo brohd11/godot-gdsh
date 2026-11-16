@@ -99,7 +99,8 @@ func request_completion(force:=true) -> void:
 		_popup = CompletionPopup.new()
 		_popup.choice_accepted.connect(_accept_completion)
 		add_child(_popup)
-	if await _popup.set_choices(choices, generation):
+	if await _popup.set_choices(choices, generation, \
+			CompletionModel.best_match(choices, CompletionModel.needle(_completion_request))):
 		if generation == _completion_generation:
 			_popup.position_for_caret(self)
 
