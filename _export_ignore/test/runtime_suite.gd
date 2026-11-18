@@ -800,6 +800,18 @@ func _test_script_target():
 	else:
 		check(text_result.exit_code != 0 and text_result.stderr.contains("source is unavailable"), "--text diagnoses stripped source in binary exports")
 
+	# Scripts outside res:// compile from source; relative extends must resolve beside the file.
+	var outside = OS.get_temp_dir().path_join("gdsh_outside_target_%d" % OS.get_process_id())
+	DirAccess.make_dir_recursive_absolute(outside)
+	_write_file(outside.path_join("base.gd"), "extends RefCounted\nstatic func base_value(): return 3\n")
+	_write_file(outside.path_join("child.gd"), 'extends "base.gd"\nstatic func child_value(): return base_value() + 1\n')
+	var outside_call = run_text('script "%s" call child_value' % outside.path_join("child.gd"), Sh.Context.new_ctx("outside", ctx))
+	check(outside_call.exit_code == 0 and outside_call.stdout.strip_edges().ends_with("4"),
+			"outside script resolves a relative extends: " + outside_call.stdout + outside_call.stderr)
+	for name in ["base.gd", "child.gd"]:
+		DirAccess.remove_absolute(outside.path_join(name))
+	DirAccess.remove_absolute(outside)
+
 	# A global class name resolves through the class table rather than a path.
 	check(ctx.has_scope("GDSh"), "a bare global class name resolves to the script command")
 	# Nothing registered and not a class, path or node: still unrecognized.
@@ -2147,10 +2159,13 @@ func _test_target_members():
 		check(inherited.has("base_static") and not inherited.has("get_instance_id"), "--inherited adds scripts only: " + head)
 		var called = run_text(head + " call --inherited base_static -- 8", Sh.Context.new_ctx("inherit", ctx))
 		check(called.exit_code == 0 and called.stdout.strip_edges().ends_with("16"), "inherited static call: " + called.stderr)
-		check(run_text(head + " call base_static", Sh.Context.new_ctx("inherit", ctx)).exit_code != 0, "inherited calls require selector: " + head)
+		called = run_text(head + " call base_static -- 8", Sh.Context.new_ctx("inherit", ctx))
+		check(called.exit_code == 0 and called.stdout.strip_edges().ends_with("16"), "exact inherited name runs without selector: " + head + called.stderr)
 		var listed = run_text(head + " list --methods", Sh.Context.new_ctx("list", ctx))
 		check(listed.exit_code == 0 and listed.stdout.contains("own_method") and not listed.stdout.contains("base_method"), "list own methods: " + head)
 		check(not listed.stdout.contains("_secret"), "list hides private methods: " + head)
+		check(listed.stdout.contains("private hidden, use --private"), "list hints at hidden private members: " + head)
+		check(not run_text(head + " list --methods --private", Sh.Context.new_ctx("list", ctx)).stdout.contains("private hidden"), "no private hint with --private: " + head)
 		listed = run_text(head + " list --methods --inherited", Sh.Context.new_ctx("list", ctx))
 		check(listed.stdout.contains("base_method") and listed.stdout.contains("own_method") and not listed.stdout.contains("get_instance_id"), "list script inheritance: " + head)
 		listed = run_text(head + " list --methods --engine", Sh.Context.new_ctx("list", ctx))
@@ -2191,7 +2206,11 @@ func _test_target_members():
 	check(result.exit_code == 0 and result.stdout.strip_edges().ends_with("child:11"), "derived method override wins")
 	result = run_text(node_head + " call --inherited describe", Sh.Context.new_ctx("override", ctx))
 	check(result.exit_code == 0 and result.stdout.strip_edges().ends_with("child:200"), "derived method default overrides base metadata")
-	check(run_text(node_head + " call get_instance_id", Sh.Context.new_ctx("engine", ctx)).exit_code != 0, "engine call requires selector")
+	result = run_text(node_head + " call get_instance_id", Sh.Context.new_ctx("engine", ctx))
+	check(result.exit_code == 0 and result.stdout.contains(str(node.get_instance_id())), "exact engine name runs without selector: " + result.stderr)
+	check(run_text(script_head + " call get_instance_id", Sh.Context.new_ctx("engine", ctx)).exit_code != 0, "script target stays static-only without selector")
+	var bare_listed = run_text("node " + str(bare.get_path()) + " list --methods", Sh.Context.new_ctx("bare", ctx))
+	check(bare_listed.stdout.contains("use --engine for engine members"), "bare node list hints at --engine")
 	result = run_text(node_head + " call --engine get_instance_id", Sh.Context.new_ctx("engine", ctx))
 	check(result.exit_code == 0 and result.stdout.contains(str(node.get_instance_id())), "engine method runs on live node")
 	result = run_text(node_head + " args --engine call", Sh.Context.new_ctx("varargs", ctx))

@@ -41,6 +41,8 @@ static func _load_script(path:String):
 		return null
 	var script = GDScript.new()
 	script.source_code = FileAccess.get_file_as_string(path)
+	# Without a path, relative preloads/extends resolve against gdscript:// and fail.
+	script.set_path_cache(path)
 	return script if script.reload() == OK else null
 
 
