@@ -19,6 +19,7 @@ const SUBSTITUTION_FAILED_KEY = "__substitution_failed__"
 static func execute_command_multiline(text:String, ctx:Context=null):
 	if ctx == null: ctx = Context.new()
 	if ctx.exit_requested: return ctx
+	_renew_cancel(ctx)
 	var parsed = Parser.parse(text, false, ctx.raw_commands)
 	if not parsed.error.is_empty():
 		_parse_error(ctx, parsed.error)
@@ -37,6 +38,10 @@ static func execute_command(text:String, params:Dictionary={}):
 static func execute_argv(argv:Array, ctx:Context=null):
 	if ctx == null: ctx = Context.new()
 	if ctx.exit_requested or argv.is_empty(): return ctx
+	_renew_cancel(ctx)
+	if ctx.is_cancelled(): # e.g. its deadline passed while it waited for its turn
+		_report_cancel(ctx)
+		return ctx
 	var command = Context.new_ctx("", ctx)
 	for arg in argv:
 		command.unconsumed_tokens.append(str(arg))
@@ -46,6 +51,7 @@ static func execute_argv(argv:Array, ctx:Context=null):
 	ctx.absorb_output(command.stdout)
 	ctx.absorb_error(command.stderr)
 	_set_status(ctx, command.exit_code)
+	_report_cancel(ctx)
 	return ctx
 
 static func source_file(file_path:String, parent_ctx:Context=null):
@@ -104,12 +110,24 @@ static func _set_status(ctx:Context, status:int):
 static func _execute_tree(tree:Dictionary, ctx:Context, aliases:Dictionary={}):
 	if not ctx.exit_requested:
 		await _run(tree, ctx, aliases)
+	_report_cancel(ctx)
 	if not ctx.exit_requested:
 		ctx.exit_code = ctx.last_status
 	return ctx
 
+## A session given input directly (startup commands) shouldn't stay cancelled from last time.
+static func _renew_cancel(ctx:Context):
+	if not ctx._in_run and ctx.cancel_token.is_spent():
+		ctx.cancel_token = Context.Cancel.new()
+
+## A cancelled run ends with its status and one "cancelled: reason" line, however deep it stopped.
+static func _report_cancel(ctx:Context):
+	if not ctx.is_cancelled(): return
+	ctx.append_error(ctx.cancel_token.take_report())
+	_set_status(ctx, ctx.cancel_token.code)
+
 static func _stopped(ctx:Context) -> bool:
-	if ctx.exit_requested: return true
+	if ctx.exit_requested or ctx.is_cancelled(): return true
 	var chain = ctx.get_inherited_ctxs()
 	chain.push_front(ctx)
 	for parent in chain:
@@ -302,6 +320,8 @@ static func _loop(node:Dictionary, ctx:Context, aliases:Dictionary):
 	var count = 0
 	var body_status = 0
 	while not _stopped(ctx):
+		# Keeps long loops responsive and cancellable; a no-op unless 50 ms have passed.
+		if await child.checkpoint(): break
 		if node.kind == "for":
 			if count >= collection.size(): break
 			child.variables["$" + node.name] = collection[count]

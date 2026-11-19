@@ -57,6 +57,8 @@ var active_tui:TuiSession
 var _tui_hidden_controls:Array = []
 var _leaving_tree:=false
 var _submission_token:RefCounted
+## The running submission's ctx, so interrupt() can cancel it.
+var _running:Context
 var _prompt_bbcode:String
 
 
@@ -151,10 +153,12 @@ func execute(text:String) -> Context:
 	_submission_token = RefCounted.new()
 	result.host_data["__tui_submission"] = _submission_token
 	_stream_begin(result)
+	_running = result
 	if execution_handler.is_valid():
 		await execution_handler.call(command, result)
 	else:
 		await Execute.execute_command_multiline(command, result)
+	_running = null
 	if is_instance_valid(active_tui):
 		active_tui.close()
 	_submission_token = null
@@ -390,6 +394,30 @@ func _on_submit_requested(text:String) -> void:
 	_set_input_text("")
 	if is_inside_tree():
 		focus_input()
+
+
+## Cancel the running submission; it stops at its next checkpoint. False when nothing runs.
+func interrupt(reason:String = "interrupted") -> bool:
+	if not is_busy or _running == null:
+		return false
+	_running.cancel(reason)
+	return true
+
+
+# Ctrl+C while busy interrupts, as in a terminal, when focus is in this console. Selected output
+# still copies; on macOS Cmd+C is always copy. A running TUI handles its own keys.
+func _input(event:InputEvent) -> void:
+	if not is_busy or is_instance_valid(active_tui) or not event is InputEventKey or not event.pressed or event.echo:
+		return
+	if event.keycode != KEY_C or not event.ctrl_pressed:
+		return
+	var focus = get_viewport().gui_get_focus_owner()
+	if focus == null or not (focus == self or is_ancestor_of(focus)):
+		return
+	if output != null and not output.get_selected_text().is_empty():
+		return
+	if interrupt():
+		get_viewport().set_input_as_handled()
 
 
 func _set_busy(value:bool) -> void:

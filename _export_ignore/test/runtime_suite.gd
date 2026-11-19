@@ -152,6 +152,50 @@ func _test_host():
 	await host.host_run(["cn", "/root"])
 	equal(host.cwn, "/root", "host keeps cwn after cn")
 
+	# Cancel: nothing times out by default; a host passes a deadline, output cap or check per request.
+	var normal = await host.host_run(["wait", "0.1"])
+	equal(normal.exit_code, 0, "no deadline unless the host sets one")
+	var timed = await host.host_run(["wait", "5"], "", {"timeout_ms": 100})
+	check(timed.exit_code == 124 and timed.stderr.contains("cancelled: timed out"), "timeout_ms cancels a long command: " + str(timed))
+	var hung_up = await host.host_run(["wait", "5"], "", {"cancel_check": func(): return "client disconnected"})
+	check(hung_up.exit_code == 130 and hung_up.stderr.contains("cancelled: client disconnected"), "cancel_check stops the command: " + str(hung_up))
+	var capped = await host.host_run(["echo", "x".repeat(200)], "", {"max_output": 50})
+	check(capped.exit_code == 1 and capped.stderr.contains("output limit of 50 bytes") and capped.stdout.is_empty(), "max_output caps output: " + str(capped))
+	var expired = await host.host_run(["echo", "late"], "", {"timeout_ms": -1})
+	equal(expired.exit_code, 0, "a non-positive timeout means none")
+	var box = {}
+	var started = Time.get_ticks_msec()
+	var interrupted = func(): box.result = await host.host_run(["wait", "5"])
+	interrupted.call()
+	await _tree().create_timer(0.1).timeout
+	host.cancel("interrupted")
+	equal((await host.host_run(["echo", "next"])).stdout, "next\n", "the next request runs after a cancel")
+	check(box.get("result", {}).get("stderr", "").contains("cancelled: interrupted") and Time.get_ticks_msec() - started < 2000, "Host.cancel stops the running request: " + str(box))
+	var cancel_session = session()
+	var run_ctx = Sh.Context.new_ctx("run", cancel_session)
+	run_ctx.cancel()
+	await Sh.Execute.execute_command_multiline("echo never", run_ctx)
+	check(run_ctx.stdout.is_empty() and run_ctx.exit_code == 130 and run_ctx.stderr.contains("cancelled: cancelled"), "a cancelled run executes nothing: " + run_ctx.stderr)
+	equal(await _async_output("echo fresh", cancel_session), "fresh", "the next run from the same session starts uncancelled")
+	var pipe_ctx = Sh.Context.new_ctx("run", cancel_session)
+	check(Sh.Context.new_ctx("stage", pipe_ctx).cancel_token == pipe_ctx.cancel_token, "ctxs within a run share its token")
+
+	# Console interrupt (Ctrl+C): cancels the running submission only.
+	var interrupt_console = Sh.Console.new()
+	_tree().root.add_child(interrupt_console)
+	var console_box = {}
+	var console_started = Time.get_ticks_msec()
+	var console_run = func(): console_box.result = await interrupt_console.execute("wait 5")
+	console_run.call()
+	await _tree().create_timer(0.1).timeout
+	check(interrupt_console.interrupt(), "interrupt reports a running submission")
+	while not console_box.has("result"):
+		await _tree().process_frame
+	check(console_box.result.stderr.contains("cancelled: interrupted") and Time.get_ticks_msec() - console_started < 2000, "interrupt stops the submission: " + console_box.result.stderr)
+	check(not interrupt_console.interrupt(), "nothing to interrupt when idle")
+	equal((await interrupt_console.execute("echo after")).stdout.strip_edges(), "after", "the console runs normally after an interrupt")
+	interrupt_console.queue_free()
+
 	var plain = Sh.Host.new({"builtins": false, "commands": {"tally": COMMANDS + "counter.gd"}})
 	equal(plain.host_commands().map(func(c): return c.name), ["tally"], "builtins off; command added under a given name")
 
