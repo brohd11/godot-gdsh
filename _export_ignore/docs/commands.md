@@ -23,6 +23,43 @@ Extend `GDSh.CommandBase`, provide a name and help metadata, and implement
 Commands may `await`; execution and console input wait for them. Commands inside
 `$(...)`(command substituion) must finish synchronously.
 
+## Cancellation
+
+Cancelling is cooperative. A console Ctrl+C or a bridge deadline only flags the
+run; a command stops when it reaches `await ctx.checkpoint()`. That call also
+yields a frame every 50 ms, which is what lets the editor see the keypress at all.
+A command that never checkpoints runs to the end and freezes the editor until then.
+
+```gdscript
+func _execute(ctx: GDSh.Context):
+    for path in paths:
+        if await ctx.checkpoint():
+            return ExitCode.CANCELLED # The runner prints "cancelled: <reason>".
+        _process(path)
+    return ExitCode.OK
+```
+
+Work done in a library needs the ctx too. Pass it through and keep it optional, so
+other callers (CLI, GUI) can call the library without one:
+
+```gdscript
+# Library
+static func run(paths: Array, ctx: GDSh.Context = null) -> int:
+    for path in paths:
+        if ctx != null and await ctx.checkpoint():
+            return GDSh.Context.ExitCode.CANCELLED
+        _process(path)
+    return GDSh.Context.ExitCode.OK
+
+# Command
+func _execute(ctx: GDSh.Context):
+    return await MyLib.run(paths, ctx)
+```
+
+A single blocking call (`OS.execute`, a long loop without checkpoints) can't be
+interrupted; the cancel lands at the next checkpoint after it returns. Inside
+`$(...)` checkpoints don't yield, but they still stop a cancelled run.
+
 ## Writing output
 
 | Method | Behavior |
