@@ -76,7 +76,10 @@ static func run_substitution(ctx:Context, tree:Dictionary={}, text:="") -> bool:
 	ctx.data[_SUBSTITUTION_PENDING_KEY] = true
 	# The body's stdout is the substitution's value rather than screen output; its stderr still shows.
 	ctx.begin_capture(true, false)
+	# Checkpoints inside don't yield, so long synchronous commands still finish in this frame.
+	ctx.cancel_token.sync_depth += 1
 	_substitution_body(ctx, tree, text) # Not awaited: returns at the first pause.
+	ctx.cancel_token.sync_depth -= 1
 	if not ctx.data.has(_SUBSTITUTION_PENDING_KEY):
 		ctx.end_capture(true, false)
 		return true

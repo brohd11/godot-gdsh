@@ -17,6 +17,9 @@ var check:Callable
 ## Output bytes allowed for the run; 0 means no limit.
 var max_output:int = 0
 var output_bytes:int = 0
+## Above 0 while a `$(...)` body runs: it must finish in the current frame, so checkpoints
+## don't yield there, but still poll `check` and the deadline.
+var sync_depth:int = 0
 var _reported := false
 var _last_yield:int = Time.get_ticks_msec()
 
@@ -47,9 +50,10 @@ func checkpoint() -> bool:
 		if why is String and not why.is_empty():
 			cancel(why)
 			return true
-	var loop = Engine.get_main_loop()
-	if loop is SceneTree:
-		await loop.process_frame
+	if sync_depth == 0:
+		var loop = Engine.get_main_loop()
+		if loop is SceneTree:
+			await loop.process_frame
 	_last_yield = Time.get_ticks_msec()
 	return is_cancelled()
 

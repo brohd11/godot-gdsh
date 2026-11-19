@@ -180,6 +180,19 @@ func _test_host():
 	var pipe_ctx = Sh.Context.new_ctx("run", cancel_session)
 	check(Sh.Context.new_ctx("stage", pipe_ctx).cancel_token == pipe_ctx.cancel_token, "ctxs within a run share its token")
 
+	# $(...) runs in the current frame: checkpoints there don't yield, but still poll the check.
+	var sub_ctx = session()
+	sub_ctx.scopes.merge(Sh.Load.load_directory(FIXTURES + "async/"), true)
+	var direct = await _async_output("slow_sync 150", sub_ctx)
+	check(direct.begins_with("frames:") and direct != "frames:0", "checkpoints yield frames when run directly: " + direct)
+	equal(await _async_output("X=$(slow_sync 150); echo $X", sub_ctx), "frames:0", "a long synchronous command still works inside $(...)")
+	var sub_run = Sh.Context.new_ctx("run", sub_ctx)
+	sub_run.cancel_token.check = func(): return "client disconnected"
+	await Sh.Execute.execute_command_multiline("X=$(slow_sync 2000); echo got:$X", sub_run)
+	check(sub_run.stderr.contains("cancelled: client disconnected") and not sub_run.stdout.contains("frames"), "a cancel check still stops a command inside $(...): " + sub_run.stderr)
+	var async_sub = await _run_async("X=$(wait_frames 1 a)", sub_ctx)
+	check(async_sub.stderr.contains("async commands cannot run inside $(...)"), "truly async commands still fail inside $(...)")
+
 	# Console interrupt (Ctrl+C): cancels the running submission only.
 	var interrupt_console = Sh.Console.new()
 	_tree().root.add_child(interrupt_console)
