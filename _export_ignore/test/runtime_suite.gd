@@ -36,6 +36,7 @@ func run_sync():
 	_test_syntax_errors()
 	_test_loading()
 	_test_fresh_user_commands()
+	_test_user_command_rebase()
 	_test_builtins()
 	_test_hidden()
 	_test_clear()
@@ -71,6 +72,7 @@ func run_frames():
 	await _test_console_mixed_path_completion()
 	await _test_async()
 	await _test_host()
+	await _test_host_broken_user_commands()
 	await _test_streaming_console()
 	if not Engine.is_editor_hint():
 		await preload("res://addons/_lib/gdsh/_export_ignore/test/terminal_tests.gd").new().run(self)
@@ -841,6 +843,14 @@ func _test_script_target():
 	var outside_call = run_text('script "%s" call child_value' % outside.path_join("child.gd"), Sh.Context.new_ctx("outside", ctx))
 	check(outside_call.exit_code == 0 and outside_call.stdout.strip_edges().ends_with("4"),
 			"outside script resolves a relative extends: " + outside_call.stdout + outside_call.stderr)
+	# Kept like res:// scripts, so what a call leaves running (timers, lambdas) outlives it. A
+	# throwaway copy per load crashed the editor when a ~/.gdrc `call` left a timer behind.
+	var TargetUtil = load("res://addons/_lib/gdsh/src/core/target_util.gd")
+	var child_path = outside.path_join("child.gd")
+	check(TargetUtil._load_script(child_path) == TargetUtil._load_script(child_path), "an outside script is loaded once and kept")
+	_write_file(child_path, 'extends "base.gd"\nstatic func child_value(): return base_value() + 2\n')
+	outside_call = run_text('script "%s" call child_value' % child_path, Sh.Context.new_ctx("outside", ctx))
+	check(outside_call.stdout.strip_edges().ends_with("5"), "an edited outside script is rebuilt: " + outside_call.stdout + outside_call.stderr)
 	for name in ["base.gd", "child.gd"]:
 		DirAccess.remove_absolute(outside.path_join(name))
 	DirAccess.remove_absolute(outside)
@@ -976,6 +986,97 @@ func _test_fresh_user_commands():
 	check(Sh.Load.fresh(Sh.Load.load_command(COMMANDS + "probe.gd")) == Sh.Load.load_command(COMMANDS + "probe.gd"), "res:// commands stay cached")
 	DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(directory)
+
+## User commands compile against this copy's CommandBase, whatever gdsh path their extends names,
+## and a host lists a user directory afresh on each request.
+func _test_user_command_rebase():
+	var directory = "user://gdsh_rebase_command_test_expected_error"
+	DirAccess.make_dir_recursive_absolute(directory)
+	# Another plugin's bundled copy, which isn't in this project. Typed ctx needs the real base.
+	var path = directory.path_join("elsewhere.gd")
+	_write_file(path, 'extends "res://addons/other_plugin/src/remote/addons/_lib/gdsh/src/core/command_base.gd" # placeholder\n'
+			+ 'static func get_command_name(): return "elsewhere"\n'
+			+ 'static func get_self_command_data(): return _command_data({&"help": "elsewhere", &"positional_count": "min:0"})\n'
+			+ 'func _execute(ctx:Context): ctx.append_output("rebased " + " ".join(positional_args))\n')
+	var script = Sh.Load.load_command(path)
+	check(script != null and script.resource_path == path, "a user command naming another gdsh copy loads, keeping its path")
+	check(Sh.Load.load_command(path) == script, "an unchanged user command is not rebuilt")
+	var ctx = session()
+	ctx.scopes["elsewhere"] = {"script": script}
+	equal(run_text("elsewhere a b", Sh.Context.new_ctx("rebase", ctx)).stdout.strip_edges(), "rebased a b", "rebased command runs with a typed ctx")
+
+	var broken = directory.path_join("broken.gd")
+	_write_file(broken, 'extends "res://addons/_lib/gdsh/src/core/command_base.gd"\nfunc (:\n')
+	check(Sh.Load.load_command(broken) == null, "a user command that doesn't compile is rejected")
+
+	var host = Sh.Host.new({"builtins": false, "command_dirs": [directory]})
+	var listed = func(): return host.host_commands().map(func(c): return c.name)
+	equal(listed.call(), ["broken", "elsewhere"], "host lists the user dir's commands, broken ones too")
+	var later = directory.path_join("later")
+	DirAccess.make_dir_recursive_absolute(later)
+	_write_file(later.path_join("later.gd"), 'extends "res://addons/_lib/gdsh/src/core/command_base.gd"\n'
+			+ 'static func get_command_name(): return "later"\n'
+			+ 'static func get_self_command_data(): return _command_data({&"help": "later"})\n'
+			+ 'func _execute(ctx): ctx.append_output("later")\n')
+	equal(listed.call(), ["broken", "elsewhere", "later"], "a command added to a user dir is listed without a restart")
+
+	# Compile errors are collected where Godot can report them to a Logger (4.5+).
+	var bad = GDScript.new()
+	bad.source_code = "extends RefCounted\nfunc (:\n"
+	bad.set_path_cache("user://error_capture_expected_error.gd") # run_headless.py skips errors from these paths
+	var captured = UtilR.Objects.ErrorCapture.run(bad.reload)
+	check(captured.result != OK, "ErrorCapture returns the callable's result")
+	if UtilR.Objects.ErrorCapture.supported():
+		check(captured.errors.size() > 0 and ":2: Parse Error" in captured.errors[0], "ErrorCapture collects the parse error: %s" % captured.errors)
+
+	for file in [path, broken, later.path_join("later.gd")]:
+		DirAccess.remove_absolute(file)
+	DirAccess.remove_absolute(later)
+	DirAccess.remove_absolute(directory)
+
+## A user command that fails to load is offered, and running it says why; a broken subcommand
+## is named when its parent's request fails.
+func _test_host_broken_user_commands():
+	var directory = "user://gdsh_broken_command_test_expected_error"
+	var base_line = 'extends "res://addons/_lib/gdsh/src/core/command_base.gd"\n'
+	DirAccess.make_dir_recursive_absolute(directory.path_join("tools/bake"))
+	var broken = directory.path_join("broken.gd")
+	_write_file(broken, base_line + "\nstatic func get_command_name(): return \"broken\"\nfunc (:\n")
+	var unnamed = directory.path_join("unnamed.gd")
+	_write_file(unnamed, base_line)
+	var wrong_base = directory.path_join("wrong_base.gd")
+	_write_file(wrong_base, "extends RefCounted\n")
+	_write_file(directory.path_join("tools/tools.gd"), base_line + 'static func get_command_name(): return "tools"\n')
+	var bake = directory.path_join("tools/bake/bake.gd")
+	var bake_ok = base_line + 'static func get_command_name(): return "bake"\nfunc _execute(ctx): ctx.append_output("baked")\n'
+	_write_file(bake, base_line + "func (:\n")
+
+	var host = Sh.Host.new({"builtins": false, "command_dirs": [directory]})
+	var listed = host.host_commands()
+	equal(listed.map(func(c): return c.name), ["broken", "tools", "unnamed", "wrong_base"], "broken user commands are listed")
+	check(listed[0].summary.begins_with("failed to load"), "a broken command's summary says so: " + listed[0].summary)
+
+	var result = await host.host_run(["broken"])
+	check(result.exit_code != 0 and result.stderr.contains(broken + " failed to load"), "running a broken command names its file: " + result.stderr)
+	if UtilR.Objects.ErrorCapture.supported():
+		check(result.stderr.contains(broken + ":4: Parse Error"), "and gives the parse error and line: " + result.stderr)
+	check((await host.host_help("broken")).contains("failed to load"), "host_help on a broken command says why")
+	check((await host.host_run(["unnamed"])).stderr.contains("no valid name"), "a command without a name says so")
+	check((await host.host_run(["wrong_base"])).stderr.contains("must extend"), "a command with another base says so")
+
+	result = await host.host_run(["tools", "bake"])
+	check(result.exit_code != 0 and result.stderr.contains("note: " + bake + " failed to load"), "a broken subcommand is named: " + result.stderr)
+	_write_file(bake, bake_ok)
+	result = await host.host_run(["tools", "bake"])
+	check(result.exit_code == 0 and result.stdout.strip_edges() == "baked" and not result.stderr.contains("note:"), "a fixed subcommand runs: " + result.stderr)
+	_write_file(broken, base_line + 'static func get_command_name(): return "broken"\nfunc _execute(ctx): ctx.append_output("fixed")\n')
+	equal((await host.host_run(["broken"])).stdout.strip_edges(), "fixed", "a fixed command runs")
+	check(not host.host_commands()[0].summary.begins_with("failed"), "and is no longer listed as broken")
+
+	for file in [broken, unnamed, wrong_base, bake, directory.path_join("tools/tools.gd")]:
+		DirAccess.remove_absolute(file)
+	for dir in ["tools/bake", "tools", ""]:
+		DirAccess.remove_absolute(directory.path_join(dir))
 
 func _test_echo_formatting():
 	var ctx = session()

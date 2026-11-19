@@ -8,6 +8,24 @@ import tempfile
 from pathlib import Path
 
 
+
+# Fixtures that fail on purpose have this in their path; their errors don't fail the run.
+EXPECTED_ERROR = 'expected_error'
+
+
+def has_unexpected_errors(output):
+    """SCRIPT ERROR / Parse Error lines, except those naming an expected_error path on the
+    line itself or on the 'at:' line Godot prints after it."""
+    lines = output.splitlines()
+    for i, line in enumerate(lines):
+        if 'SCRIPT ERROR:' not in line and 'Parse Error:' not in line:
+            continue
+        following = lines[i + 1] if i + 1 < len(lines) else ''
+        if EXPECTED_ERROR in line or (following.strip().startswith('at:') and EXPECTED_ERROR in following):
+            continue
+        return True
+    return False
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--godot', default='godot')
@@ -89,7 +107,7 @@ binary_format/architecture="x86_64"
             result = subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=90)
             quiet = ('--editor' in command or '--export-pack' in command) and not result.returncode and 'ERROR:' not in result.stdout
             print(('PASS: project export' if '--export-pack' in command else 'PASS: project import') if quiet else re.sub(r'\x1b\[[0-9;]*m', '', result.stdout), flush=True)
-            if result.returncode or 'SCRIPT ERROR:' in result.stdout or 'Parse Error:' in result.stdout:
+            if result.returncode or has_unexpected_errors(result.stdout):
                 return 1
         print(f'PASS: runtime isolation; {len(visited)} resources reached from GDSh, util_r and the tests')
         return 0
