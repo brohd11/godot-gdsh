@@ -59,6 +59,7 @@ func run_sync():
 	_test_echo_formatting()
 	_test_script_highlighter_logic()
 	_test_streaming()
+	_test_output_links()
 
 
 ## Console popup sizing and input delivery need rendered frames; headless only.
@@ -760,6 +761,38 @@ func _test_bare_resolution():
 
 ## The script target: a global class name, a res:// path, or a path relative to cwd, with the
 ## subcommands routed at whatever resolved.
+## Consoles turn output paths into links, so commands can print plain text.
+func _test_output_links():
+	var L = preload("res://addons/_lib/gdsh/src/ui/output_links.gd")
+	equal(L.to_bbcode("res://a.gd:6:func x"), "[url=res://a.gd:6]res://a.gd:6[/url]:func x", "path with a line links to that line")
+	equal(L.to_bbcode("see res://a/b.tscn"), "see [url=res://a/b.tscn:0]res://a/b.tscn[/url]", "bare path gets a :0 meta")
+	equal(L.to_bbcode("user://log.txt"), "[url=user://log.txt:0]user://log.txt[/url]", "user:// paths link")
+	equal(L.to_bbcode("open res://a.gd."), "open [url=res://a.gd:0]res://a.gd[/url].", "a trailing period is not part of the path")
+	equal(L.to_bbcode("res://scripts/ and res://"), "res://scripts/ and res://", "directories and bare roots are not linked")
+	var kept = "[url=res://x.gd:2]res://x.gd:2[/url] [img]res://icon.svg[/img] [font=res://f.ttf]t[/font]"
+	equal(L.to_bbcode(kept), kept, "existing links, images and tag arguments are left alone")
+	equal(L.to_bbcode("[color=red]res://a.gd[/color]"), "[color=red][url=res://a.gd:0]res://a.gd[/url][/color]", "paths inside other tags link")
+	var parts = L.split("a res://b.gd:1 c")
+	check(parts.size() == 3 and parts[1].meta == "res://b.gd:1" and parts[0].meta.is_empty(), "split marks the path segment")
+	equal(L.parse_meta("res://a.gd:3"), {"path": "res://a.gd", "line": 3}, "parse_meta reads path and line")
+	check(L.parse_meta("https://godotengine.org").is_empty() and L.parse_meta("res://a.gd").is_empty(), "parse_meta ignores foreign metas")
+
+	var console = Sh.Console.new()
+	console.create_output()
+	console._add_stdout("see res://a.gd:3 now\n")
+	equal(console.output.get_parsed_text(), "see res://a.gd:3 now\n", "plain consoles keep the text while linking it")
+	var clicked = []
+	console.link_clicked.connect(func(path, line): clicked.append([path, line]))
+	console.output.meta_clicked.emit("res://a.gd:3")
+	console.output.meta_clicked.emit("https://example.com")
+	equal(clicked, [["res://a.gd", 3]], "transcript clicks report path links only")
+	console.link_paths = false
+	console.output.clear()
+	console._add_stdout("res://a.gd")
+	equal(console.output.get_parsed_text(), "res://a.gd", "link_paths=false renders plain text")
+	console.free()
+
+
 func _test_script_target():
 	var target = FIXTURES + "method_target.gd"
 	var ctx = session()

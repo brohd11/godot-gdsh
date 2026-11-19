@@ -82,6 +82,7 @@ func create_output() -> RichTextLabel:
 	output.mouse_filter = Control.MOUSE_FILTER_STOP
 	output.mouse_force_pass_scroll_events = false
 	output.gui_input.connect(_on_output_gui_input)
+	_connect_links()
 	add_child(output)
 	move_child(output, 0)
 	_apply_theme()

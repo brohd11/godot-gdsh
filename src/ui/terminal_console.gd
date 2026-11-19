@@ -66,6 +66,7 @@ func _init(initial_context:Context=null) -> void:
 	output.resized.connect(_on_layout_changed)
 	output.theme_changed.connect(_on_layout_changed)
 	output.get_v_scroll_bar().value_changed.connect(_on_scroll_changed)
+	_connect_links()
 	add_child(output)
 	_caret_overlay = Control.new()
 	_caret_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -247,9 +248,11 @@ func _stream_chunk(text:String, is_error:bool) -> void:
 			_stream_err_header = true
 			output.add_text("stderr:\n")
 	if output_bbcode:
-		output.append_text(text)
-	else:
+		output.append_text(text if is_error else _linked_bbcode(text))
+	elif is_error:
 		output.add_text(text)
+	else:
+		_add_stdout(text)
 	if is_error:
 		output.pop()
 	_seal_output()

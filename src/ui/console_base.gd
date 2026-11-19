@@ -9,11 +9,15 @@ const Highlighter = preload("res://addons/_lib/gdsh/src/ui/console_highlighter.g
 const ScriptHighlighter = preload("res://addons/_lib/gdsh/src/ui/script_highlighter.gd")
 const Palette = preload("res://addons/_lib/gdsh/src/ui/palette.gd")
 const TuiSession = preload("res://addons/_lib/gdsh/src/tui/tui_session.gd")
+const OutputLinks = preload("res://addons/_lib/gdsh/src/ui/output_links.gd")
 
 signal command_submitted(text:String)
 signal command_finished(text:String, result:Context)
 ## Emitted when a submission starts and when it finishes.
 signal busy_changed(busy:bool)
+## A path link in the transcript was clicked; line is 0 when the output named no line.
+## Opening it is the host's job, since what "open" means differs per host.
+signal link_clicked(path:String, line:int)
 
 ## True while a submission runs; input is locked until it finishes.
 var is_busy:=false
@@ -31,6 +35,8 @@ var prompt_formatter:Callable:
 		update_prompt()
 
 var output:RichTextLabel
+## Render res:// and user:// file paths in stdout as links.
+var link_paths:=true
 
 var command_history:Array[String] = []
 var _history_index:int = -1
@@ -312,7 +318,7 @@ func _stream_chunk(text:String, is_error:bool) -> void:
 	if output == null:
 		return
 	if not is_error:
-		output.add_text(text)
+		_add_stdout(text)
 		return
 	output.push_color(Color("ff6b6b"))
 	if not _stream_err_header:
@@ -455,7 +461,7 @@ func _append_result(result:Context) -> void:
 	var tail = _stream_tail(result.stdout, _stream_out_len)
 	var err_tail = _stream_tail(result.stderr, _stream_err_len)
 	if not tail.is_empty():
-		output.add_text(tail)
+		_add_stdout(tail)
 	if not err_tail.is_empty():
 		output.push_color(Color("ff6b6b"))
 		if not _stream_err_header:
@@ -464,6 +470,31 @@ func _append_result(result:Context) -> void:
 		output.pop()
 		_seal_output()
 	_scroll_after_output()
+
+
+## Plain stdout, with paths as links when enabled.
+func _add_stdout(text:String) -> void:
+	if link_paths:
+		OutputLinks.add_plain(output, text)
+	else:
+		output.add_text(text)
+
+
+## BBCode stdout, with paths wrapped as [url] when enabled.
+func _linked_bbcode(text:String) -> String:
+	return OutputLinks.to_bbcode(text) if link_paths else text
+
+
+## Subclasses call this once their transcript exists.
+func _connect_links() -> void:
+	if output != null and not output.meta_clicked.is_connected(_on_output_meta_clicked):
+		output.meta_clicked.connect(_on_output_meta_clicked)
+
+
+func _on_output_meta_clicked(meta) -> void:
+	var link = OutputLinks.parse_meta(meta)
+	if not link.is_empty():
+		link_clicked.emit(link.path, link.line)
 
 
 ## Godot 4.7 select_all() ends on the line where the last item's top-level container began, so a
