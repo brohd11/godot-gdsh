@@ -543,6 +543,16 @@ func _test_loading():
 	var duplicates = Sh.Load.load_directory(FIXTURES + "duplicates/")
 	equal(duplicates.size(), 1, "duplicates reported and skipped")
 	equal(duplicates.duplicate.script.resource_path, FIXTURES + "duplicates/a.gd", "deterministic first registration")
+	check(Sh.Load.load_package(COMMANDS).is_empty(), "package without cmd/ loads nothing")
+	var package = Sh.Load.load_package(FIXTURES + "package")
+	equal(package.keys(), ["crate"], "package loads its cmd/ commands, not manifest.gd")
+	var pkg_ctx = Sh.Context.new()
+	pkg_ctx.cwd = FIXTURES
+	equal(pkg_ctx.load_package("package").keys(), ["crate"], "context loads a package relative to cwd")
+	equal(run_text("crate lid", pkg_ctx).stdout.strip_edges(), "lid:open", "package subcommands stay nested")
+	var pkg_host = Sh.Host.new({"builtins": false})
+	check(pkg_host.add_package(FIXTURES + "package"), "host adds a package")
+	equal(pkg_host.host_commands().map(func(c): return c.name), ["crate"], "host offers the package commands")
 
 func _test_builtins():
 	var ctx = Sh.Context.new()

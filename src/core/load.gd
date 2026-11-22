@@ -131,6 +131,15 @@ static func load_directory(path:String, child_directories_only:=false) -> Dictio
 		scopes[name] = {Types.ScopeDataKeys.SCRIPT: script}
 	return scopes
 
+## A command package keeps its commands in <path>/cmd/ (a manifest.gd plus command dirs), so
+## any package registers the same way. Returns {} and reports an error when cmd/ is missing.
+static func load_package(path:String) -> Dictionary:
+	var dir = path.path_join("cmd")
+	if not DirAccess.dir_exists_absolute(dir):
+		push_error("GDSh.Load: package has no cmd/ dir: " + path)
+		return {}
+	return load_directory(dir)
+
 ## Untagged on purpose: a command-only export skips the builtins. GDSh.Host preloads the list,
 ## which ships it and rewrites this path along with it. Inline in load() so it stays absolute.
 static func load_builtins() -> Dictionary:

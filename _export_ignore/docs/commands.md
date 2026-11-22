@@ -129,6 +129,21 @@ command owns the `name/name.gd` directories beside it, whether it is loose or ma
 its own directory. Loading the root above registers `greet` and `door` at the top
 level and again under `tools`.
 
+### Command packages
+
+A package that ships commands keeps them in `<package>/cmd/`, with plain logic in
+`<package>/src/`. Any package then registers the same way:
+
+```gdscript
+context.load_package("res://addons/my_package")   # loads res://addons/my_package/cmd
+host.add_package("res://addons/my_package")
+GDSh.Load.load_package("res://addons/my_package")  # the scope dictionary
+```
+
+`cmd/` holds a `manifest.gd` (preloads for exporters) and the command dirs. Keep loose
+commands out of it: each would own every sibling dir as its subcommands, so put a
+namespace in its own `name/name.gd` dir instead.
+
 Because a loose command claims all its sibling directories, give each namespace its
 own folder (`src/utils/`, `src/other/`) rather than placing several loose commands
 in one. Children sort by their `&"priority"` command data key, then by name.

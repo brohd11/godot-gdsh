@@ -134,6 +134,12 @@ func load(path:String, hidden:=false) -> Dictionary:
 	return loaded
 
 
+func load_package(path:String, hidden:=false) -> Dictionary:
+	var loaded = context.load_package(path, hidden)
+	_refresh_highlighting()
+	return loaded
+
+
 ## Awaits async commands; input stays locked and further submissions are refused until done.
 func execute(text:String) -> Context:
 	var command = text.strip_edges()

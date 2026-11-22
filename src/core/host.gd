@@ -65,6 +65,11 @@ func add_command_dir(dir:String) -> bool:
 	return true
 
 
+## Add a command package: its <path>/cmd/ dir (as GDSh.Load.load_package).
+func add_package(path:String) -> bool:
+	return add_command_dir(path.path_join("cmd"))
+
+
 ## Add one command script, under `name` or its own command name.
 func add_command(path:String, name:String = "") -> bool:
 	var script = Load.load_command(path)

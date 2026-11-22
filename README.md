@@ -80,6 +80,7 @@ shell syntax (such as mcp-sh-godot). `cd` and `cn` carry over between requests.
 
 ```gdscript
 var host = GDSh.Host.new({"command_dirs": ["res://commands"]})
+host.add_package("res://addons/my_package")            # its cmd/ dir
 host.host_commands()                                   # [{name, summary}]
 await host.host_help("greet")                          # full help text
 var result = await host.host_run(["greet", "--loud"])  # {stdout, stderr, exit_code}
