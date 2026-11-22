@@ -16,14 +16,48 @@ const _COMMAND_BASE_SUFFIX = "gdsh/src/core/command_base.gd"
 static var _user_builds := {}
 
 
-## User commands live outside res:// (~/.mcp-sh/godot/commands and other folders) or in the
-## project's res://.mcp-sh/. They can't know where gdsh is installed, so they are compiled
-## against this copy: write `extends "res://addons/_lib/gdsh/src/core/command_base.gd"` and they
-## run under any host. They extend command_base.gd directly, reach the library through its
+## User commands live outside res:// (~/.gdsh, ~/.mcp-sh/godot/commands and other folders) or in
+## the project's res://.gdsh/ or res://.mcp-sh/. They can't know where gdsh is installed, so
+## they are compiled against this copy: write
+## `extends "res://addons/_lib/gdsh/src/core/command_base.gd"` and they run under any host. They extend command_base.gd directly, reach the library through its
 ## consts (Context, Options, Utils, ...) and don't override _init. They are rebuilt when the file
 ## changes, so edits apply without a restart.
 static func is_user_path(path:String) -> bool:
-	return not path.begins_with("res://") or path.begins_with("res://.mcp-sh/")
+	return not path.begins_with("res://") or path.begins_with("res://.gdsh/") or path.begins_with("res://.mcp-sh/")
+
+
+## The shared user folder: $GDSH_HOME, else ~/.gdsh ("" without a home folder).
+static func home_dir() -> String:
+	var dir = OS.get_environment("GDSH_HOME")
+	if not dir.is_empty():
+		return dir
+	var home = OS.get_environment("HOME")
+	if home.is_empty():
+		home = OS.get_environment("USERPROFILE")
+	return "" if home.is_empty() else home.path_join(".gdsh")
+
+
+## Every host's no-config command dirs, in load order (later wins): for the user folder, then
+## res://.gdsh, its commands/ and then each packages/<name>/cmd. Dot folders are never scanned
+## by the editor, and these are user paths, so they need no gdsh install. Listed fresh each call.
+static func default_dirs() -> PackedStringArray:
+	var dirs := PackedStringArray()
+	for root in [home_dir(), "res://.gdsh"]:
+		if root.is_empty():
+			continue
+		var commands = root.path_join("commands")
+		if DirAccess.dir_exists_absolute(commands):
+			dirs.append(commands)
+		var packages = root.path_join("packages")
+		if not DirAccess.dir_exists_absolute(packages):
+			continue
+		var names = Array(DirAccess.get_directories_at(packages))
+		names.sort()
+		for name in names:
+			var cmd = packages.path_join(name).path_join("cmd")
+			if DirAccess.dir_exists_absolute(cmd):
+				dirs.append(cmd)
+	return dirs
 
 
 ## Returns null and reports an error for an invalid command.

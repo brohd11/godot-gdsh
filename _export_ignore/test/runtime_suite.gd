@@ -37,6 +37,7 @@ func run_sync():
 	_test_loading()
 	_test_fresh_user_commands()
 	_test_user_command_rebase()
+	_test_default_dirs()
 	_test_builtins()
 	_test_hidden()
 	_test_clear()
@@ -1100,6 +1101,49 @@ func _test_user_command_rebase():
 		DirAccess.remove_absolute(file)
 	DirAccess.remove_absolute(later)
 	DirAccess.remove_absolute(directory)
+
+## ~/.gdsh (here $GDSH_HOME) and res://.gdsh: commands/ then each packages/<name>/cmd, listed
+## afresh, so a package cloned in later is offered without a restart.
+func _test_default_dirs():
+	check(Sh.Load.is_user_path("res://.gdsh/packages/level/cmd/level/level.gd"), "res://.gdsh is a user path")
+	check(not Sh.Load.is_user_path("res://addons/_lib/gdsh_lib/level/cmd/level/level.gd"), "addons are not user paths")
+	var previous = OS.get_environment("GDSH_HOME")
+	var home = "user://gdsh_default_dirs_test"
+	OS.set_environment("GDSH_HOME", home)
+	equal(Sh.Load.home_dir(), home, "GDSH_HOME sets the user folder")
+	var line = 'extends "res://addons/_lib/gdsh/src/core/command_base.gd"\n'
+	var files = {
+		"commands/hi/hi.gd": line + 'static func get_command_name(): return "hi"\nfunc _execute(ctx): ctx.append_output("hi")\n',
+		"packages/crate/cmd/crate/crate.gd": line + 'static func get_command_name(): return "crate"\n',
+		"packages/crate/cmd/crate/lid/lid.gd": line + 'static func get_command_name(): return "lid"\nfunc _execute(ctx): ctx.append_output("lid")\n',
+		"packages/crate/cmd/manifest.gd": "extends RefCounted\n",
+		"packages/not_a_package/notes.gd": "extends RefCounted\n",
+	}
+	for rel in files:
+		DirAccess.make_dir_recursive_absolute(home.path_join(rel).get_base_dir())
+		_write_file(home.path_join(rel), files[rel])
+	equal(Sh.Load.default_dirs(), PackedStringArray([home.path_join("commands"), home.path_join("packages/crate/cmd")]), "commands/ then packages with a cmd/ dir")
+
+	var host = Sh.Host.new({"builtins": false, "default_dirs": true})
+	var listed = func(): return host.host_commands().map(func(c): return c.name)
+	equal(listed.call(), ["crate", "hi"], "host offers default commands and packages")
+	var later = "packages/box/cmd/box/box.gd"
+	DirAccess.make_dir_recursive_absolute(home.path_join(later).get_base_dir())
+	_write_file(home.path_join(later), line + 'static func get_command_name(): return "box"\n')
+	files[later] = ""
+	equal(listed.call(), ["box", "crate", "hi"], "a package added later is offered without a restart")
+	var crate = host.get_scopes().get("crate", {}).get("script")
+	check(crate != null and crate.new().get_commands().has("lid"), "default package subcommands stay nested")
+
+	OS.set_environment("GDSH_HOME", previous)
+	var paths = files.keys()
+	paths.sort()
+	paths.reverse()
+	for rel in paths:
+		DirAccess.remove_absolute(home.path_join(rel))
+	for dir in ["packages/box/cmd/box", "packages/box/cmd", "packages/box", "packages/crate/cmd/crate/lid", "packages/crate/cmd/crate",
+			"packages/crate/cmd", "packages/crate", "packages/not_a_package", "packages", "commands/hi", "commands", ""]:
+		DirAccess.remove_absolute(home.path_join(dir))
 
 ## A user command that fails to load is offered, and running it says why; a broken subcommand
 ## is named when its parent's request fails.

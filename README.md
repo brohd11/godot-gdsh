@@ -19,6 +19,25 @@ Optional command libraries install under `res://addons/_lib/gdsh_lib/`:
 - [utils](https://github.com/brohd11/godot-gdsh-lib-utils): Unix-style text utilities.
 - [tree](https://github.com/brohd11/godot-gdsh-lib-tree): Add, remove, and inspect nodes.
 
+### Command packages outside the project
+
+Editor tooling (mcp-sh-godot, Editor Console) also reads command packages from shared dot
+folders. No config and no gdsh install are needed there, and the editor never scans them:
+
+```
+~/.gdsh/                    user folder ($GDSH_HOME overrides)
+res://.gdsh/                this project; wins over the user folder on a name clash
+  commands/                 loose commands: name.gd or name/name.gd
+  packages/<name>/          command packages, each with a cmd/ dir
+```
+
+Management is manual. Clone a package into `packages/`, add it as a submodule, or keep
+`~/.gdsh` as its own repo. Name each folder after the package's `path` basename (`level`,
+`terrain3d`), and put its gdsh packages beside it, since packages find each other as
+siblings. gdsh itself is not needed: commands there are rebuilt against the host's copy.
+For a game export or GDPackage, install into `res://addons/_lib/gdsh_lib/` instead.
+See [Commands and completion](_export_ignore/docs/commands.md#shared-folders).
+
 ## Run a script
 
 ```gdscript

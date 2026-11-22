@@ -144,6 +144,19 @@ GDSh.Load.load_package("res://addons/my_package")  # the scope dictionary
 commands out of it: each would own every sibling dir as its subcommands, so put a
 namespace in its own `name/name.gd` dir instead.
 
+Code in `src/` should not depend on gdsh. Commands load it relative to their own file,
+and a package that depends on another finds it as a sibling folder (`../level/src/`).
+That way the same copy works under `res://addons/_lib/gdsh_lib/` and the shared folders.
+
+### Shared folders
+
+`GDSh.Load.default_dirs()` lists the command dirs every host reads without config, in
+load order: the user folder (`$GDSH_HOME`, else `~/.gdsh`), then `res://.gdsh`. Each
+contributes its `commands/` and then every `packages/<name>/cmd`.
+`host.add_default_dirs()` (or `Host.new({"default_dirs": true})`) adds them and lists
+them again on each request. These are user paths (`GDSh.Load.is_user_path`), so their
+commands are rebuilt against the running gdsh and need no install of their own.
+
 Because a loose command claims all its sibling directories, give each namespace its
 own folder (`src/utils/`, `src/other/`) rather than placing several loose commands
 in one. Children sort by their `&"priority"` command data key, then by name.
