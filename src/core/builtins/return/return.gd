@@ -32,7 +32,8 @@ func _execute(ctx:Context):
 		if inh.data.has(Types.FUNCTION_KEY):
 			inh.data[Types.RETURN_KEY] = code
 			inh.last_status = code
-			return
+			return ctx.exit_code
 
 	ctx.append_error("Attempted return while not in function.")
 	ctx.exit_code = ExitCode.ERR
+	return ctx.exit_code

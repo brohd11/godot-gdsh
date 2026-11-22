@@ -18,7 +18,9 @@ func _execute(ctx: GDSh.Context):
 ```
 
 Extend `GDSh.CommandBase`, provide a name and help metadata, and implement
-`_execute(ctx)` returning an exit code.
+`_execute(ctx)` returning an exit code. The return is required: a script error aborts
+`_execute` with `null`, so a `null` result fails the command (exit 2) with the errors Godot
+logged meanwhile (Godot 4.5+), or "no exit code returned" when there were none.
 
 Commands may `await`; execution and console input wait for them. Commands inside
 `$(...)`(command substituion) must finish synchronously.

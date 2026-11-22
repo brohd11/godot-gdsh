@@ -28,6 +28,7 @@ func _process_flag(flag:String):
 
 func _execute(ctx:Context):
 	ctx.append_output("%s:%s:%s:%s" % [mode, loud, ",".join(positional_args), ",".join(payload)])
+	return ExitCode.OK
 
 func _get_completions(completion:Completion):
 	var flag_options = _get_flag_type_completions(completion)

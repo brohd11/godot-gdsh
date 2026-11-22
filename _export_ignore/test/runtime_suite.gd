@@ -74,6 +74,7 @@ func run_frames():
 	await _test_async()
 	await _test_host()
 	await _test_host_broken_user_commands()
+	await _test_host_aborted_commands()
 	await _test_streaming_console()
 	if not Engine.is_editor_hint():
 		await preload("res://addons/_lib/gdsh/_export_ignore/test/terminal_tests.gd").new().run(self)
@@ -1042,7 +1043,7 @@ func _test_fresh_user_commands():
 	var source = 'extends "res://addons/_lib/gdsh/src/core/command_base.gd"\n' \
 			+ 'static func get_command_name(): return "fresh"\n' \
 			+ 'static func get_self_command_data(): return _command_data({&"help": "fresh"})\n' \
-			+ 'func _execute(ctx): ctx.append_output("%s")\n'
+			+ 'func _execute(ctx): ctx.append_output("%s"); return ExitCode.OK\n'
 	_write_file(path, source % "first")
 	var ctx = session()
 	var script = Sh.Load.load_command(path)
@@ -1065,7 +1066,7 @@ func _test_user_command_rebase():
 	_write_file(path, 'extends "res://addons/other_plugin/src/remote/addons/_lib/gdsh/src/core/command_base.gd" # placeholder\n'
 			+ 'static func get_command_name(): return "elsewhere"\n'
 			+ 'static func get_self_command_data(): return _command_data({&"help": "elsewhere", &"positional_count": "min:0"})\n'
-			+ 'func _execute(ctx:Context): ctx.append_output("rebased " + " ".join(positional_args))\n')
+			+ 'func _execute(ctx:Context): ctx.append_output("rebased " + " ".join(positional_args)); return ExitCode.OK\n')
 	var script = Sh.Load.load_command(path)
 	check(script != null and script.resource_path == path, "a user command naming another gdsh copy loads, keeping its path")
 	check(Sh.Load.load_command(path) == script, "an unchanged user command is not rebuilt")
@@ -1085,7 +1086,7 @@ func _test_user_command_rebase():
 	_write_file(later.path_join("later.gd"), 'extends "res://addons/_lib/gdsh/src/core/command_base.gd"\n'
 			+ 'static func get_command_name(): return "later"\n'
 			+ 'static func get_self_command_data(): return _command_data({&"help": "later"})\n'
-			+ 'func _execute(ctx): ctx.append_output("later")\n')
+			+ 'func _execute(ctx): ctx.append_output("later"); return ExitCode.OK\n')
 	equal(listed.call(), ["broken", "elsewhere", "later"], "a command added to a user dir is listed without a restart")
 
 	# Compile errors are collected where Godot can report them to a Logger (4.5+).
@@ -1113,9 +1114,9 @@ func _test_default_dirs():
 	equal(Sh.Load.home_dir(), home, "GDSH_HOME sets the user folder")
 	var line = 'extends "res://addons/_lib/gdsh/src/core/command_base.gd"\n'
 	var files = {
-		"commands/hi/hi.gd": line + 'static func get_command_name(): return "hi"\nfunc _execute(ctx): ctx.append_output("hi")\n',
+		"commands/hi/hi.gd": line + 'static func get_command_name(): return "hi"\nfunc _execute(ctx): ctx.append_output("hi"); return ExitCode.OK\n',
 		"packages/crate/cmd/crate/crate.gd": line + 'static func get_command_name(): return "crate"\n',
-		"packages/crate/cmd/crate/lid/lid.gd": line + 'static func get_command_name(): return "lid"\nfunc _execute(ctx): ctx.append_output("lid")\n',
+		"packages/crate/cmd/crate/lid/lid.gd": line + 'static func get_command_name(): return "lid"\nfunc _execute(ctx): ctx.append_output("lid"); return ExitCode.OK\n',
 		"packages/crate/cmd/manifest.gd": "extends RefCounted\n",
 		"packages/not_a_package/notes.gd": "extends RefCounted\n",
 	}
@@ -1159,7 +1160,7 @@ func _test_host_broken_user_commands():
 	_write_file(wrong_base, "extends RefCounted\n")
 	_write_file(directory.path_join("tools/tools.gd"), base_line + 'static func get_command_name(): return "tools"\n')
 	var bake = directory.path_join("tools/bake/bake.gd")
-	var bake_ok = base_line + 'static func get_command_name(): return "bake"\nfunc _execute(ctx): ctx.append_output("baked")\n'
+	var bake_ok = base_line + 'static func get_command_name(): return "bake"\nfunc _execute(ctx): ctx.append_output("baked"); return ExitCode.OK\n'
 	_write_file(bake, base_line + "func (:\n")
 
 	var host = Sh.Host.new({"builtins": false, "command_dirs": [directory]})
@@ -1180,7 +1181,7 @@ func _test_host_broken_user_commands():
 	_write_file(bake, bake_ok)
 	result = await host.host_run(["tools", "bake"])
 	check(result.exit_code == 0 and result.stdout.strip_edges() == "baked" and not result.stderr.contains("note:"), "a fixed subcommand runs: " + result.stderr)
-	_write_file(broken, base_line + 'static func get_command_name(): return "broken"\nfunc _execute(ctx): ctx.append_output("fixed")\n')
+	_write_file(broken, base_line + 'static func get_command_name(): return "broken"\nfunc _execute(ctx): ctx.append_output("fixed"); return ExitCode.OK\n')
 	equal((await host.host_run(["broken"])).stdout.strip_edges(), "fixed", "a fixed command runs")
 	check(not host.host_commands()[0].summary.begins_with("failed"), "and is no longer listed as broken")
 
@@ -1188,6 +1189,39 @@ func _test_host_broken_user_commands():
 		DirAccess.remove_absolute(file)
 	for dir in ["tools/bake", "tools", ""]:
 		DirAccess.remove_absolute(directory.path_join(dir))
+
+## A script error aborts _execute with null: the run fails with Godot's errors instead of exiting 0
+## silently. A missing return is an error too, since every command must return an ExitCode.
+func _test_host_aborted_commands():
+	var directory = "user://gdsh_aborted_command_test_expected_error"
+	var base_line = 'extends "res://addons/_lib/gdsh/src/core/command_base.gd"\n'
+	DirAccess.make_dir_recursive_absolute(directory)
+	var helper = directory.path_join("helper.gd")
+	_write_file(helper, "extends RefCounted\nstatic func run(:\n")
+	var files = {
+		"crash.gd": base_line + 'static func get_command_name(): return "crash"\nfunc _execute(ctx):\n\tvar n = null\n\tn.missing_call()\n\treturn ExitCode.OK\n',
+		"use_helper.gd": base_line + 'static func get_command_name(): return "use_helper"\nfunc _execute(ctx):\n'
+				+ '\tResourceLoader.load("%s", "", ResourceLoader.CACHE_MODE_IGNORE_DEEP).run()\n\treturn ExitCode.OK\n' % helper,
+		"no_return.gd": base_line + 'static func get_command_name(): return "no_return"\nfunc _execute(ctx): ctx.append_output("ran")\n',
+	}
+	for file in files:
+		_write_file(directory.path_join(file), files[file])
+	var host = Sh.Host.new({"builtins": false, "command_dirs": [directory]})
+
+	var result = await host.host_run(["crash"])
+	check(result.exit_code != 0, "a runtime error fails the command")
+	if UtilR.Objects.ErrorCapture.supported():
+		check(result.stderr.contains("missing_call"), "and reports the error: " + result.stderr)
+	result = await host.host_run(["use_helper"])
+	check(result.exit_code != 0, "calling a helper that fails to compile fails the command")
+	if UtilR.Objects.ErrorCapture.supported():
+		check(result.stderr.contains(helper + ":2: Parse Error"), "and reports the parse error: " + result.stderr)
+	result = await host.host_run(["no_return"])
+	check(result.exit_code != 0 and result.stderr.contains("no_return: no exit code returned"), "a missing return is an error: " + result.stderr)
+	equal(result.stdout.strip_edges(), "ran", "its output is kept")
+
+	for file in files.keys() + ["helper.gd", ""]:
+		DirAccess.remove_absolute(directory.path_join(file))
 
 func _test_echo_formatting():
 	var ctx = session()

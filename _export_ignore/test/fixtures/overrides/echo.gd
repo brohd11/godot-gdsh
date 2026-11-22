@@ -13,5 +13,6 @@ func _get_target_positional_count() -> int:
 	return positional_args.size()
 
 
-func _execute(ctx:Context) -> void:
+func _execute(ctx:Context):
 	ctx.append_output("layered:" + " ".join(positional_args))
+	return ExitCode.OK

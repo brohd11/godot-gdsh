@@ -8,3 +8,4 @@ static func get_self_command_data():
 
 func _execute(ctx:Context):
 	ctx.append_output("lid:open")
+	return ExitCode.OK

@@ -26,3 +26,4 @@ func _get_target_positional_count() -> int:
 
 func _execute(ctx:Context):
 	await Execution._call_function(function_name, ctx, positional_args)
+	return ctx.exit_code

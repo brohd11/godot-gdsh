@@ -14,4 +14,4 @@ static func get_self_command_data():
 	})
 
 func _execute(ctx:Context):
-	ctx.exit_code = ExitCode.FAIL
+	return ExitCode.FAIL

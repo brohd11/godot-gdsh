@@ -11,3 +11,4 @@ static func get_self_command_data():
 func _execute(ctx:Context):
 	calls += 1
 	ctx.append_output(str(calls))
+	return ExitCode.OK

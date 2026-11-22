@@ -26,3 +26,4 @@ func _get_flags() -> Dictionary:
 
 func _execute(ctx:Context):
 	ctx.append_output("%s:%s:%s:%s:%s:%d,%d" % [text_flag, count_flag, ratio_flag, loud_flag, dry_run_flag, size_flag.x, size_flag.y])
+	return ExitCode.OK

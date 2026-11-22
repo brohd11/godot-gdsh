@@ -17,7 +17,7 @@ func _execute(ctx:Context):
 	for inh in ctx.get_inherited_ctxs():
 		if inh.data.has(Execution._IS_LOOP_KEY):
 			inh.data[Execution._LOOP_BREAK_KEY] = true
-			return
+			return ExitCode.OK
 
 	ctx.append_error("Cannot break when not in a loop.")
-	ctx.exit_code = ExitCode.ERR
+	return ExitCode.ERR

@@ -109,6 +109,8 @@ func _execute(ctx: GDSh.Context):
     return ExitCode.OK
 ```
 
+`_execute` must return an exit code; `null` (a script error, or no return) fails the command.
+
 ## Reference
 
 - [Execution and contexts](_export_ignore/docs/execution.md)

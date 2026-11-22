@@ -8,6 +8,7 @@ static func get_self_command_data():
 
 func _execute(ctx:Context):
 	ctx.append_output("opened:" + positional_args[0])
+	return ExitCode.OK
 
 func _get_completions(completion:Completion):
 	var options = Options.new()
