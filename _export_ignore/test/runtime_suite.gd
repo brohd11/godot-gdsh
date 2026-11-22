@@ -38,6 +38,7 @@ func run_sync():
 	_test_fresh_user_commands()
 	_test_user_command_rebase()
 	_test_default_dirs()
+	_test_command_root()
 	_test_builtins()
 	_test_hidden()
 	_test_clear()
@@ -1145,6 +1146,29 @@ func _test_default_dirs():
 	for dir in ["packages/box/cmd/box", "packages/box/cmd", "packages/box", "packages/crate/cmd/crate/lid", "packages/crate/cmd/crate",
 			"packages/crate/cmd", "packages/crate", "packages/not_a_package", "packages", "commands/hi", "commands", ""]:
 		DirAccess.remove_absolute(home.path_join(dir))
+
+## add_command_root: a root that doesn't exist yet is fine, and its commands/ and packages are
+## listed afresh once they appear (mcp-sh-godot's ~/.mcp-sh/godot works this way).
+func _test_command_root():
+	var root = "user://gdsh_command_root_test"
+	var host = Sh.Host.new({"builtins": false})
+	host.add_command_root(root)
+	var listed = func(): return host.host_commands().map(func(c): return c.name)
+	equal(listed.call(), [], "a missing root offers nothing")
+	var line = 'extends "res://addons/_lib/gdsh/src/core/command_base.gd"\n'
+	var files = {
+		"commands/yo/yo.gd": line + 'static func get_command_name(): return "yo"\n',
+		"packages/kit/cmd/kit/kit.gd": line + 'static func get_command_name(): return "kit"\n',
+	}
+	for rel in files:
+		DirAccess.make_dir_recursive_absolute(root.path_join(rel).get_base_dir())
+		_write_file(root.path_join(rel), files[rel])
+	equal(Sh.Load.root_dirs(root), PackedStringArray([root.path_join("commands"), root.path_join("packages/kit/cmd")]), "root_dirs: commands/ then packages")
+	equal(listed.call(), ["kit", "yo"], "a root's commands and packages show up without a restart")
+	for rel in files:
+		DirAccess.remove_absolute(root.path_join(rel))
+	for dir in ["commands/yo", "commands", "packages/kit/cmd/kit", "packages/kit/cmd", "packages/kit", "packages", ""]:
+		DirAccess.remove_absolute(root.path_join(dir))
 
 ## A user command that fails to load is offered, and running it says why; a broken subcommand
 ## is named when its parent's request fails.

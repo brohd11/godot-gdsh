@@ -78,6 +78,12 @@ func add_default_dirs() -> void:
 	_added.append({"defaults": true})
 
 
+## Add a command root's commands/ and packages/<name>/cmd dirs (GDSh.Load.root_dirs). Listed
+## again on every request, so the root may not exist yet.
+func add_command_root(root:String) -> void:
+	_added.append({"root": root})
+
+
 ## Add one command script, under `name` or its own command name.
 func add_command(path:String, name:String = "") -> bool:
 	var script = Load.load_command(path)
@@ -98,6 +104,9 @@ func _get_added_scopes() -> Dictionary:
 			scopes[entry.name] = {Types.ScopeDataKeys.SCRIPT: entry.script}
 		elif entry.has("defaults"):
 			for dir in Load.default_dirs():
+				_merge_user_dir(dir, scopes, broken)
+		elif entry.has("root"):
+			for dir in Load.root_dirs(entry.root):
 				_merge_user_dir(dir, scopes, broken)
 		elif Load.is_user_path(entry.dir):
 			_merge_user_dir(entry.dir, scopes, broken)

@@ -16,8 +16,8 @@ const _COMMAND_BASE_SUFFIX = "gdsh/src/core/command_base.gd"
 static var _user_builds := {}
 
 
-## User commands live outside res:// (~/.gdsh, ~/.mcp-sh/godot/commands and other folders) or in
-## the project's res://.gdsh/ or res://.mcp-sh/. They can't know where gdsh is installed, so
+## User commands live outside res:// (~/.gdsh, ~/.mcp-sh/godot and other folders) or in the
+## project's res://.gdsh/ or res://.mcp-sh/. They can't know where gdsh is installed, so
 ## they are compiled against this copy: write
 ## `extends "res://addons/_lib/gdsh/src/core/command_base.gd"` and they run under any host. They extend command_base.gd directly, reach the library through its
 ## consts (Context, Options, Utils, ...) and don't override _init. They are rebuilt when the file
@@ -37,26 +37,33 @@ static func home_dir() -> String:
 	return "" if home.is_empty() else home.path_join(".gdsh")
 
 
-## Every host's no-config command dirs, in load order (later wins): for the user folder, then
-## res://.gdsh, its commands/ and then each packages/<name>/cmd. Dot folders are never scanned
-## by the editor, and these are user paths, so they need no gdsh install. Listed fresh each call.
+## Every host's no-config command dirs, in load order (later wins): root_dirs of the user
+## folder, then of res://.gdsh. Dot folders are never scanned by the editor, and these are user
+## paths, so they need no gdsh install. Listed fresh each call.
 static func default_dirs() -> PackedStringArray:
 	var dirs := PackedStringArray()
 	for root in [home_dir(), "res://.gdsh"]:
-		if root.is_empty():
-			continue
-		var commands = root.path_join("commands")
-		if DirAccess.dir_exists_absolute(commands):
-			dirs.append(commands)
-		var packages = root.path_join("packages")
-		if not DirAccess.dir_exists_absolute(packages):
-			continue
-		var names = Array(DirAccess.get_directories_at(packages))
-		names.sort()
-		for name in names:
-			var cmd = packages.path_join(name).path_join("cmd")
-			if DirAccess.dir_exists_absolute(cmd):
-				dirs.append(cmd)
+		if not root.is_empty():
+			dirs.append_array(root_dirs(root))
+	return dirs
+
+
+## A command root's dirs, in load order: its commands/, then each packages/<name>/cmd (sorted).
+## Missing parts are skipped. Listed fresh each call.
+static func root_dirs(root:String) -> PackedStringArray:
+	var dirs := PackedStringArray()
+	var commands = root.path_join("commands")
+	if DirAccess.dir_exists_absolute(commands):
+		dirs.append(commands)
+	var packages = root.path_join("packages")
+	if not DirAccess.dir_exists_absolute(packages):
+		return dirs
+	var names = Array(DirAccess.get_directories_at(packages))
+	names.sort()
+	for name in names:
+		var cmd = packages.path_join(name).path_join("cmd")
+		if DirAccess.dir_exists_absolute(cmd):
+			dirs.append(cmd)
 	return dirs
 
 

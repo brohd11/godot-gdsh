@@ -22,11 +22,16 @@ res://.gdsh/                this project; wins over the user folder on a name cl
 ```
 
 ```sh
-git clone https://github.com/brohd11/godot-gdsh-lib-level ~/.gdsh/packages/level
+mcp_sh_godot gdsh search             # reviewed packages (godot-gdsh-lib-manifest)
+mcp_sh_godot gdsh install terrain3d  # with level beside it, at the reviewed commits
 ```
 
-- Management is manual. Clone or copy a package, add it as a submodule, or keep `~/.gdsh` as
-  its own repo.
+- The installer writes to the root `mcp_sh_godot gdsh target` picks (`~/.mcp-sh/godot` or
+  `~/.gdsh`; `--project`, `--dir ROOT`). It installs only listed packages, at the commit the
+  index pins.
+- Manual installs work too. Clone or copy a package
+  (`git clone https://github.com/brohd11/godot-gdsh-lib-level ~/.gdsh/packages/level`), add it
+  as a submodule, or keep `~/.gdsh` as its own repo.
 - Name each folder after the package's `path` basename in `package.cfg` (`level`, `terrain3d`).
 - Put the gdsh packages it depends on beside it, because packages find each other as sibling
   folders. For example, terrain3d needs `packages/level`.
@@ -36,6 +41,10 @@ git clone https://github.com/brohd11/godot-gdsh-lib-level ~/.gdsh/packages/level
   (utils' `check` uses util_r), that code must be in the project, so install the package
   in the project instead, or install its dependency there.
 - A package cloned in later shows up on the next request, without a restart.
+
+mcp-sh-godot also reads `~/.mcp-sh/godot/` and `res://.mcp-sh/godot/` the same way
+(`commands/` + `packages/<name>/cmd`), for setups without Editor Console. Only the MCP
+bridge reads those folders. The interactive console reads only `.gdsh`.
 
 ### In the project: `res://addons/_lib/gdsh_lib/`
 
@@ -88,5 +97,6 @@ GDSh.Load.load_package("res://addons/my_package")  # the scope dictionary
 `GDSh.Load.default_dirs()` lists the shared-folder dirs in load order: the user folder, then
 `res://.gdsh`, each giving its `commands/` and then every `packages/<name>/cmd`.
 `host.add_default_dirs()` (or `Host.new({"default_dirs": true})`) adds them and lists them again
-on each request. They are user paths (`GDSh.Load.is_user_path`), so their commands are compiled
+on each request. `GDSh.Load.root_dirs(root)` and `host.add_command_root(root)` do the same for
+any one folder laid out that way. The root doesn't have to exist yet. They are user paths (`GDSh.Load.is_user_path`), so their commands are compiled
 against the running gdsh, and edits apply without a restart.
