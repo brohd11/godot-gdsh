@@ -1105,11 +1105,24 @@ func _test_user_command_rebase():
 	DirAccess.remove_absolute(later)
 	DirAccess.remove_absolute(directory)
 
+## A copy outside res:// (the CLI's ~/.gdsh/cli) must not take its own builtins for user commands,
+## which would be rebuilt against itself on every dispatch.
+func _test_anchor():
+	var Anchor = preload("res://addons/_lib/gdsh/src/core/anchor.gd")
+	equal(Anchor.root(), "res://addons/_lib/gdsh/", "the anchor finds this copy")
+	check(not Sh.Load.is_user_path(Anchor.path("src/core/builtins/echo/echo.gd")), "a builtin is not a user path")
+	var saved = Anchor._root
+	Anchor._root = "/tmp/gdsh_anchor_test/gdsh/"
+	check(not Sh.Load.is_user_path("/tmp/gdsh_anchor_test/gdsh/src/core/builtins/echo/echo.gd"), "an outside copy's own builtin is not a user path")
+	check(Sh.Load.is_user_path("/tmp/gdsh_anchor_test/commands/x/x.gd"), "other outside files still are")
+	Anchor._root = saved
+
 ## ~/.gdsh (here $GDSH_HOME) and res://.gdsh: commands/ then each packages/<name>/cmd, listed
 ## afresh, so a package cloned in later is offered without a restart.
 func _test_default_dirs():
 	check(Sh.Load.is_user_path("res://.gdsh/packages/level/cmd/level/level.gd"), "res://.gdsh is a user path")
 	check(not Sh.Load.is_user_path("res://addons/_lib/gdsh_lib/level/cmd/level/level.gd"), "addons are not user paths")
+	_test_anchor()
 	var previous = OS.get_environment("GDSH_HOME")
 	var home = "user://gdsh_default_dirs_test"
 	OS.set_environment("GDSH_HOME", home)
@@ -1154,6 +1167,9 @@ func _test_default_dirs():
 ## built against this gdsh from disk, subcommands included.
 func _test_plugin_dirs():
 	var plugin = "res://addons/zz_gdsh_plugin_dirs_test"
+	DirAccess.make_dir_recursive_absolute(plugin)
+	if FileAccess.open(plugin.path_join("plugin.cfg"), FileAccess.WRITE) == null:
+		return # res:// is read-only when the suite runs from an exported PCK.
 	var line = 'extends "res://addons/_lib/gdsh/src/core/command_base.gd"\n'
 	var files = {
 		"plugin.cfg": "[plugin]\n",

@@ -3,6 +3,7 @@ extends RefCounted
 
 const Lexer = preload("res://addons/_lib/gdsh/src/core/lexer.gd")
 const Context = preload("res://addons/_lib/gdsh/src/core/context.gd")
+const _Anchor = preload("res://addons/_lib/gdsh/src/core/anchor.gd")
 
 static func words(input:Array, ctx:Context, completion:=false) -> Dictionary:
 	var values:Array = []
@@ -28,7 +29,7 @@ static func word_values(word:Dictionary, ctx:Context, completion:=false, scalar:
 					value = "$(" + part.value + ")"
 				else:
 					var child = Context.new_ctx("Substitution", ctx, true)
-					var engine = load("res://addons/_lib/gdsh/src/core/execute.gd")
+					var engine = load(_Anchor.path("src/core/execute.gd"))
 					# Expansion is synchronous; the engine fails the command if the body pauses.
 					if not engine.run_substitution(child, part.get("tree", {}), part.value):
 						ctx.data[engine.SUBSTITUTION_FAILED_KEY] = true

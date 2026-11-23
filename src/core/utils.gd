@@ -8,10 +8,14 @@ const _Paths = preload("res://addons/_lib/gdsh/src/core/paths.gd")
 const Value = preload("res://addons/_lib/gdsh/src/core/value.gd")
 ## Checked method calls on a Script (static) or any object: Method.call_method(ctx, target, name, args).
 const Method = preload("res://addons/_lib/gdsh/src/core/method_call.gd")
+const _Anchor = preload("res://addons/_lib/gdsh/src/core/anchor.gd")
 
-## Lazy to avoid the loader's CommandBase preload cycle; the tag keeps relocated copies complete.
+## Gathers Load into exports that only reach CommandBase; get_loader() loads it lazily.
+const _LOAD_PATH = "res://addons/_lib/gdsh/src/core/load.gd" #! gdp-dependency
+
+## Lazy to avoid the loader's CommandBase preload cycle.
 static func get_loader():
-	return load("res://addons/_lib/gdsh/src/core/load.gd") #! gdp-dependency
+	return load(_Anchor.path("src/core/load.gd"))
 
 
 ## Whether a scope entry appears in top-level listings (root completion, `hidden`, `help`).

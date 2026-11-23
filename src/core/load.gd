@@ -5,6 +5,7 @@ extends RefCounted
 const Paths = preload("res://addons/_lib/gdsh/src/core/paths.gd")
 const Types = preload("res://addons/_lib/gdsh/src/core/types.gd")
 const CommandBase = preload("res://addons/_lib/gdsh/src/core/command_base.gd")
+const _Anchor = preload("res://addons/_lib/gdsh/src/core/anchor.gd")
 
 const ScriptRebase = UtilR.Objects.ScriptRebase
 
@@ -23,7 +24,10 @@ static var _user_builds := {}
 ## `extends "res://addons/_lib/gdsh/src/core/command_base.gd"` and they run under any host. They extend command_base.gd directly, reach the library through its
 ## consts (Context, Options, Utils, ...) and don't override _init. They are rebuilt when the file
 ## changes, so edits apply without a restart.
+## This copy's own files never are, even when it runs from outside res:// (the CLI).
 static func is_user_path(path:String) -> bool:
+	if path.begins_with(_Anchor.root()):
+		return false
 	return not path.begins_with("res://") or path.begins_with("res://.gdsh/") or path.begins_with("res://.mcp-sh/") \
 		or _in_ignored_plugin_cmd(path)
 
@@ -214,9 +218,9 @@ static func load_package(path:String) -> Dictionary:
 	return load_directory(dir)
 
 ## Untagged on purpose: a command-only export skips the builtins. GDSh.Host preloads the list,
-## which ships it and rewrites this path along with it. Inline in load() so it stays absolute.
+## which ships it.
 static func load_builtins() -> Dictionary:
-	var script = load("res://addons/_lib/gdsh/src/core/builtin_scripts.gd")
+	var script = load(_Anchor.path("src/core/builtin_scripts.gd"))
 	if script == null:
 		push_error("GDSh.Load: builtins not exported; reference GDSh.Host to ship them")
 		return {}
