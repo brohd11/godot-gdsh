@@ -1065,7 +1065,7 @@ func _test_user_command_rebase():
 	DirAccess.make_dir_recursive_absolute(directory)
 	# Another plugin's bundled copy, which isn't in this project. Typed ctx needs the real base.
 	var path = directory.path_join("elsewhere.gd")
-	_write_file(path, 'extends "res://addons/other_plugin/src/remote/addons/_lib/gdsh/src/core/command_base.gd" # placeholder\n'
+	_write_file(path, 'extends "res://addons/other_plugin/vendor/addons/_lib/gdsh/src/core/command_base.gd" # placeholder\n'
 			+ 'static func get_command_name(): return "elsewhere"\n'
 			+ 'static func get_self_command_data(): return _command_data({&"help": "elsewhere", &"positional_count": "min:0"})\n'
 			+ 'func _execute(ctx:Context): ctx.append_output("rebased " + " ".join(positional_args)); return ExitCode.OK\n')
