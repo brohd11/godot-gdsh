@@ -38,6 +38,7 @@ func run_sync():
 	_test_fresh_user_commands()
 	_test_user_command_rebase()
 	_test_default_dirs()
+	_test_plugin_dirs()
 	_test_command_root()
 	_test_builtins()
 	_test_hidden()
@@ -1124,7 +1125,9 @@ func _test_default_dirs():
 	for rel in files:
 		DirAccess.make_dir_recursive_absolute(home.path_join(rel).get_base_dir())
 		_write_file(home.path_join(rel), files[rel])
-	equal(Sh.Load.default_dirs(), PackedStringArray([home.path_join("commands"), home.path_join("packages/crate/cmd")]), "commands/ then packages with a cmd/ dir")
+	# Enabled plugins' cmd/ dirs come first (see _test_plugin_dirs).
+	var user_dirs = Sh.Load.default_dirs().slice(Sh.Load.plugin_dirs().size())
+	equal(user_dirs, PackedStringArray([home.path_join("commands"), home.path_join("packages/crate/cmd")]), "commands/ then packages with a cmd/ dir")
 
 	var host = Sh.Host.new({"builtins": false, "default_dirs": true})
 	var listed = func(): return host.host_commands().map(func(c): return c.name)
@@ -1146,6 +1149,42 @@ func _test_default_dirs():
 	for dir in ["packages/box/cmd/box", "packages/box/cmd", "packages/box", "packages/crate/cmd/crate/lid", "packages/crate/cmd/crate",
 			"packages/crate/cmd", "packages/crate", "packages/not_a_package", "packages", "commands/hi", "commands", ""]:
 		DirAccess.remove_absolute(home.path_join(dir))
+
+## Enabled top-level plugins' cmd/ dirs. A .gdignore'd cmd/ (a release) is a user path, so it is
+## built against this gdsh from disk, subcommands included.
+func _test_plugin_dirs():
+	var plugin = "res://addons/zz_gdsh_plugin_dirs_test"
+	var line = 'extends "res://addons/_lib/gdsh/src/core/command_base.gd"\n'
+	var files = {
+		"plugin.cfg": "[plugin]\n",
+		"cmd/pdt/pdt.gd": line + 'static func get_command_name(): return "pdt"\n',
+		"cmd/pdt/sub/sub.gd": line + 'static func get_command_name(): return "sub"\nfunc _execute(ctx): ctx.append_output("sub ran"); return ExitCode.OK\n',
+	}
+	for rel in files:
+		DirAccess.make_dir_recursive_absolute(plugin.path_join(rel).get_base_dir())
+		_write_file(plugin.path_join(rel), files[rel])
+	var enabled = [plugin.path_join("plugin.cfg"), "res://addons/zz_missing/plugin.cfg", "res://addons/_lib/gdsh/plugin.cfg"]
+	equal(Sh.Load.plugin_dirs(enabled), PackedStringArray([plugin.path_join("cmd")]), "only enabled top-level plugins with a cmd/ dir")
+	equal(Sh.Load.plugin_dirs([]), PackedStringArray(), "no enabled plugins, no dirs")
+	var cmd_file = plugin.path_join("cmd/pdt/pdt.gd")
+	check(not Sh.Load.is_user_path(cmd_file), "a plugin's cmd/ in source loads normally")
+
+	_write_file(plugin.path_join("cmd/.gdignore"), "")
+	files["cmd/.gdignore"] = ""
+	check(Sh.Load.is_user_path(cmd_file), "a .gdignore'd plugin cmd/ is a user path")
+	check(not Sh.Load.is_user_path(plugin.path_join("src/x.gd")), "only cmd/ counts, not the rest of the plugin")
+	var scopes = Sh.Load.load_directory(plugin.path_join("cmd"))
+	var pdt = scopes.get("pdt", {}).get("script")
+	check(pdt != null, "ignored cmd/ command loads from disk")
+	check(pdt != null and pdt.new().get_commands().has("sub"), "ignored cmd/ subcommands are found")
+
+	var paths = files.keys()
+	paths.sort()
+	paths.reverse()
+	for rel in paths:
+		DirAccess.remove_absolute(plugin.path_join(rel))
+	for dir in ["cmd/pdt/sub", "cmd/pdt", "cmd", ""]:
+		DirAccess.remove_absolute(plugin.path_join(dir))
 
 ## add_command_root: a root that doesn't exist yet is fine, and its commands/ and packages are
 ## listed afresh once they appear (mcp-sh-godot's ~/.mcp-sh/godot works this way).

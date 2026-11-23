@@ -11,6 +11,7 @@ const ScriptRebase = UtilR.Objects.ScriptRebase
 ## A user command's extends line is swapped for this copy's CommandBase when it names any gdsh
 ## copy's command_base.gd: the plain lib, or one bundled into a plugin.
 const _COMMAND_BASE_SUFFIX = "gdsh/src/core/command_base.gd"
+const PLUGINS_DIR = "res://addons/"
 
 ## Built user commands by path: [source hash, script or null, why it failed or ""].
 static var _user_builds := {}
@@ -23,7 +24,18 @@ static var _user_builds := {}
 ## consts (Context, Options, Utils, ...) and don't override _init. They are rebuilt when the file
 ## changes, so edits apply without a restart.
 static func is_user_path(path:String) -> bool:
-	return not path.begins_with("res://") or path.begins_with("res://.gdsh/") or path.begins_with("res://.mcp-sh/")
+	return not path.begins_with("res://") or path.begins_with("res://.gdsh/") or path.begins_with("res://.mcp-sh/") \
+		or _in_ignored_plugin_cmd(path)
+
+
+## A released plugin's cmd/ may be .gdignore'd so the editor never parses it (its gdsh may be
+## absent); those commands are compiled against this copy, like ~/.gdsh ones.
+static func _in_ignored_plugin_cmd(path:String) -> bool:
+	if not path.begins_with(PLUGINS_DIR):
+		return false
+	var parts = path.trim_prefix(PLUGINS_DIR).split("/")
+	return parts.size() > 2 and parts[1] == "cmd" \
+		and FileAccess.file_exists(PLUGINS_DIR.path_join(parts[0]).path_join("cmd/.gdignore"))
 
 
 ## The shared user folder: $GDSH_HOME, else ~/.gdsh ("" without a home folder).
@@ -37,14 +49,32 @@ static func home_dir() -> String:
 	return "" if home.is_empty() else home.path_join(".gdsh")
 
 
-## Every host's no-config command dirs, in load order (later wins): root_dirs of the user
-## folder, then of res://.gdsh. Dot folders are never scanned by the editor, and these are user
-## paths, so they need no gdsh install. Listed fresh each call.
+## Every host's no-config command dirs, in load order (later wins): enabled plugins' cmd/, then
+## root_dirs of the user folder, then of res://.gdsh. Dot folders are never scanned by the editor,
+## and these are user paths, so they need no gdsh install. Listed fresh each call.
 static func default_dirs() -> PackedStringArray:
-	var dirs := PackedStringArray()
+	var dirs := plugin_dirs()
 	for root in [home_dir(), "res://.gdsh"]:
 		if not root.is_empty():
 			dirs.append_array(root_dirs(root))
+	return dirs
+
+
+## The cmd/ dirs of enabled top-level plugins (res://addons/<name>/), sorted. Read from the
+## project's enabled list rather than the editor, so the editor, MCP and the headless CLI agree.
+## `enabled` (plugin.cfg paths) defaults to editor_plugins/enabled.
+static func plugin_dirs(enabled = null) -> PackedStringArray:
+	if enabled == null:
+		enabled = ProjectSettings.get_setting("editor_plugins/enabled", PackedStringArray())
+	var dirs := PackedStringArray()
+	for cfg in enabled:
+		var dir = str(cfg).get_base_dir()
+		if dir.get_base_dir() + "/" != PLUGINS_DIR:
+			continue
+		var cmd = dir.path_join("cmd")
+		if DirAccess.dir_exists_absolute(cmd):
+			dirs.append(cmd)
+	dirs.sort()
 	return dirs
 
 
@@ -150,11 +180,13 @@ static func user_build_errors(dir:String) -> Dictionary:
 static func load_directory(path:String, child_directories_only:=false) -> Dictionary:
 	var candidates: Array[String] = []
 	var entries = Paths.list_directory(path)
+	# User files are read from disk; an ignored dir has nothing in the resource index.
+	var user = is_user_path(path.path_join("_"))
 	for entry in entries:
 		if entry.ends_with("/"):
 			var name = entry.trim_suffix("/")
 			var candidate = path.path_join(name).path_join(name + ".gd")
-			if ResourceLoader.exists(candidate, "GDScript"):
+			if FileAccess.file_exists(candidate) if user else ResourceLoader.exists(candidate, "GDScript"):
 				candidates.append(candidate)
 		# A loose manifest.gd preloads the directory's commands for exporters; it is not a command.
 		elif not child_directories_only and entry.ends_with(".gd") and entry != "manifest.gd":
