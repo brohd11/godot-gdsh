@@ -1144,7 +1144,13 @@ func _test_default_dirs():
 	equal(user_dirs, PackedStringArray([home.path_join("commands"), home.path_join("packages/crate/cmd")]), "commands/ then packages with a cmd/ dir")
 
 	var host = Sh.Host.new({"builtins": false, "default_dirs": true})
-	var listed = func(): return host.host_commands().map(func(c): return c.name)
+	# Enabled plugins' commands depend on the project; only the user dirs are under test.
+	var plugin_dirs = Sh.Load.plugin_dirs()
+	var from_plugin = func(name):
+		var script = host.get_scopes().get(name, {}).get("script")
+		var path = script.resource_path if script else ""
+		return Array(plugin_dirs).any(func(d): return path.begins_with(d + "/"))
+	var listed = func(): return host.host_commands().map(func(c): return c.name).filter(func(n): return not from_plugin.call(n))
 	equal(listed.call(), ["crate", "hi"], "host offers default commands and packages")
 	var later = "packages/box/cmd/box/box.gd"
 	DirAccess.make_dir_recursive_absolute(home.path_join(later).get_base_dir())
