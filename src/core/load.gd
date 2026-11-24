@@ -10,7 +10,8 @@ const _Anchor = preload("res://addons/_lib/gdsh/src/core/anchor.gd")
 const ScriptRebase = UtilR.Objects.ScriptRebase
 
 ## A user command's extends line is swapped for this copy's CommandBase when it names any gdsh
-## copy's command_base.gd: the plain lib, or one bundled into a plugin.
+## copy's command_base.gd: the plain lib, or one bundled into a plugin. Any command whose direct
+## base is another copy's command_base.gd (a plugin that ships gdsh) is rebuilt the same way.
 const _COMMAND_BASE_SUFFIX = "gdsh/src/core/command_base.gd"
 const PLUGINS_DIR = "res://addons/"
 
@@ -114,6 +115,8 @@ static func load_command(path:String) -> GDScript:
 		push_error("GDSh.Load: cannot instantiate command: " + path)
 		return null
 	var problem = _check_command(script)
+	if not problem.is_empty() and _extends_other_copy(script):
+		return _build_user(path, true)
 	if not problem.is_empty():
 		push_error("GDSh.Load: %s: %s" % [problem, path])
 		return null
@@ -132,6 +135,12 @@ static func _check_command(script:GDScript) -> String:
 		return "command has no valid name"
 	return ""
 
+## The direct base is another gdsh copy's CommandBase, e.g. one bundled into a released plugin.
+## Direct only: the rebase swaps just the file's own extends line.
+static func _extends_other_copy(script:GDScript) -> bool:
+	var base = script.get_base_script()
+	return base != null and base != CommandBase and base.resource_path.ends_with(_COMMAND_BASE_SUFFIX)
+
 ## User commands are rebuilt on use when their file changed, so edits apply without a restart.
 ## A file that no longer builds keeps its last good script (the error is printed once).
 static func fresh(script:GDScript) -> GDScript:
@@ -143,7 +152,9 @@ static func fresh(script:GDScript) -> GDScript:
 
 ## Built and checked once per version of the file. A failure is remembered too, with its
 ## reason, so a broken file reports once rather than on every listing, and hosts can show why.
-static func _build_user(path:String) -> GDScript:
+## swap_any: the base is already known to be a gdsh copy, so swap whatever form the extends takes
+## (an exporter may have written a uid:// or relative path).
+static func _build_user(path:String, swap_any := false) -> GDScript:
 	if not FileAccess.file_exists(path):
 		push_error("GDSh.Load: command not found: " + path)
 		return null
@@ -152,7 +163,7 @@ static func _build_user(path:String) -> GDScript:
 	if built != null and built[0] == source_hash:
 		return built[1]
 	var error = ""
-	var script = ScriptRebase.build(path, CommandBase, _COMMAND_BASE_SUFFIX)
+	var script = ScriptRebase.build(path, CommandBase, "" if swap_any else _COMMAND_BASE_SUFFIX)
 	if script == null:
 		error = "\n".join(ScriptRebase.last_errors)
 		if error.is_empty():

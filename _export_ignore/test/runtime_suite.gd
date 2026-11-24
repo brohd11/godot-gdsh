@@ -39,6 +39,7 @@ func run_sync():
 	_test_user_command_rebase()
 	_test_default_dirs()
 	_test_plugin_dirs()
+	_test_bundled_copy_rebase()
 	_test_command_root()
 	_test_builtins()
 	_test_hidden()
@@ -1200,6 +1201,48 @@ func _test_plugin_dirs():
 	for rel in paths:
 		DirAccess.remove_absolute(plugin.path_join(rel))
 	for dir in ["cmd/pdt/sub", "cmd/pdt", "cmd", ""]:
+		DirAccess.remove_absolute(plugin.path_join(dir))
+
+## A released plugin whose cmd/ extends its own bundled gdsh copy: loaded normally against that
+## copy, then rebuilt against this one, so the host's typed Context and checks accept it.
+func _test_bundled_copy_rebase():
+	var plugin = "res://addons/zz_gdsh_bundled_test"
+	var stub_rel = "vendor/addons/_lib/gdsh/src/core/command_base.gd"
+	DirAccess.make_dir_recursive_absolute(plugin)
+	if FileAccess.open(plugin.path_join("plugin.cfg"), FileAccess.WRITE) == null:
+		return # res:// is read-only when the suite runs from an exported PCK.
+	var line = 'extends "%s"\n' % plugin.path_join(stub_rel)
+	var files = {
+		"plugin.cfg": "[plugin]\n",
+		# Just enough of a copy for the fixtures to compile against it.
+		stub_rel: 'extends RefCounted\nenum ExitCode {OK}\nstatic func get_command_name(): return ""\n',
+		"cmd/bundled/bundled.gd": line + 'static func get_command_name(): return "bundled"\n',
+		"cmd/bundled/sub/sub.gd": line + 'static func get_command_name(): return "sub"\n'
+				+ 'func _execute(ctx): ctx.append_output("bundled sub ran"); return ExitCode.OK\n',
+	}
+	for rel in files:
+		DirAccess.make_dir_recursive_absolute(plugin.path_join(rel).get_base_dir())
+		_write_file(plugin.path_join(rel), files[rel])
+	var cmd_file = plugin.path_join("cmd/bundled/bundled.gd")
+	check(not Sh.Load.is_user_path(cmd_file), "a bundled copy's command is not a user path")
+	var scopes = Sh.Load.load_directory(plugin.path_join("cmd"))
+	var script = scopes.get("bundled", {}).get("script")
+	check(script != null, "a command on a bundled gdsh copy loads")
+	check(script != null and script.resource_path == cmd_file, "the rebuilt command keeps its path")
+	check(script != null and script.get_base_script() == Sh.Load.CommandBase, "it is rebuilt on this copy's CommandBase")
+	check(script != null and script.new().get_commands().has("sub"), "its subcommands are rebuilt too")
+	if script != null:
+		var ctx = session()
+		ctx.scopes["bundled"] = {"script": script}
+		equal(run_text("bundled sub", Sh.Context.new_ctx("bundled", ctx)).stdout.strip_edges(), "bundled sub ran", "a rebuilt subcommand runs")
+
+	var paths = files.keys()
+	paths.sort()
+	paths.reverse()
+	for rel in paths:
+		DirAccess.remove_absolute(plugin.path_join(rel))
+	for dir in ["cmd/bundled/sub", "cmd/bundled", "cmd", "vendor/addons/_lib/gdsh/src/core", "vendor/addons/_lib/gdsh/src",
+			"vendor/addons/_lib/gdsh", "vendor/addons/_lib", "vendor/addons", "vendor", ""]:
 		DirAccess.remove_absolute(plugin.path_join(dir))
 
 ## add_command_root: a root that doesn't exist yet is fine, and its commands/ and packages are
