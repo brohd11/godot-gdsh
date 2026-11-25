@@ -62,6 +62,22 @@ A single blocking call (`OS.execute`, a long loop without checkpoints) can't be
 interrupted; the cancel lands at the next checkpoint after it returns. Inside
 `$(...)` checkpoints don't yield, but they still stop a cancelled run.
 
+## Host checks
+
+`_host()` returns `$GDSH_HOST`: `Host.EDITOR_CONSOLE` (`"editor_console"`), `Host.CLI` (`"cli"`),
+`Host.MCP` (`"mcp"`), a custom name, or `""` when no host set it. Use it to refuse an
+environment a command can't serve:
+
+```gdscript
+func _execute(ctx):
+    if _host() == Host.CLI:
+        ctx.append_error("Needs the editor.")
+        return ExitCode.FAIL
+```
+
+`GDSh.Host.host_run(argv, stdin, {"host_name": name})` sets it per request; the
+mcp-sh bridge passes `"mcp"`.
+
 ## Writing output
 
 | Method | Behavior |

@@ -20,6 +20,12 @@ class InputProbe extends Node:
 		events.append(event)
 
 
+## A host whose requests start from one fixed root, as ConsoleHost starts from the console's ctx.
+class FixedRootHost extends Sh.Host:
+	var root
+	func _create_root_ctx():
+		return root
+
 class FixedCompletion extends Sh.Completion:
 	var choices:Dictionary
 
@@ -156,6 +162,19 @@ func _test_host():
 	equal(host.cwd, "res://addons/_lib", "the next request starts in the kept cwd")
 	await host.host_run(["cn", "/root"])
 	equal(host.cwn, "/root", "host keeps cwn after cn")
+
+	# _host() reads $GDSH_HOST; host_name sets it per request, over a root's (ConsoleHost's "editor_console").
+	var probe_host = Sh.Host.new({"command_dirs": [FIXTURES + "host/"]})
+	equal((await probe_host.host_run(["host_probe"])).stdout, "host:\n", "_host() is empty when no host set it")
+	equal((await probe_host.host_run(["host_probe"], "", {"host_name": "mcp"})).stdout, "host:mcp\n", "host_name sets _host()")
+	var console_root = Sh.Context.new("console", false)
+	console_root.variables["$GDSH_HOST"] = "editor_console"
+	probe_host = FixedRootHost.new({"command_dirs": [FIXTURES + "host/"]})
+	probe_host.root = console_root
+	equal((await probe_host.host_run(["host_probe"])).stdout, "host:editor_console\n", "_host() inherits the root's")
+	equal((await probe_host.host_run(["host_probe"], "", {"host_name": "mcp"})).stdout, "host:mcp\n", "host_name wins over the root's")
+	equal(console_root.variables["$GDSH_HOST"], "editor_console", "host_name stays on the request")
+	equal((await probe_host.host_run(["host_probe"], "", {"host_name": Sh.CommandBase.Host.CLI})).exit_code, 1, "a command bails out under Host.CLI")
 
 	# Cancel: nothing times out by default; a host passes a deadline, output cap or check per request.
 	var normal = await host.host_run(["wait", "0.1"])
