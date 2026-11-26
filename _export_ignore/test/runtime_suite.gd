@@ -60,6 +60,7 @@ func run_sync():
 	_test_target_members()
 	_test_script_access()
 	_test_builtin_path_completion()
+	preload("res://addons/_lib/gdsh/_export_ignore/test/filesystem_tests.gd").new().run(self)
 	_test_pwn()
 	_test_list_global()
 	_test_completion()

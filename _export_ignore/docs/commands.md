@@ -299,6 +299,7 @@ objects' lifetimes. Prefer weak references for UI bindings.
 | `object_default` | `Callable(class_name:String) -> Object` supplies missing object arguments for `call --default` |
 | `file_paths` | `Callable(directories:bool) -> PackedStringArray` supplies host paths for completion |
 | `filesystem_changed` | `Callable()` asks the host to refresh after file writes; hosts also call `GDSh.Utils.clear_global_class_cache()` when the global class registry changes |
+| `filesystem` | Optional read-only shell provider; see [Filesystem providers](filesystem.md). Inherited by child and completion contexts. |
 | `clear_callback` | `Callable(ctx, history:bool)` handles `clear [--history]`; may return a status |
 | `new_ctx_callback` | `Callable(ctx)` handles `new_ctx`; may return a status. Ends the submission |
 | `tui_begin` | `Callable(ctx) -> session` opens a temporary interactive view during a console submission; see [Writing TUI commands](tui.md) |
