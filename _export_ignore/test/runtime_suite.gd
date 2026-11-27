@@ -1191,8 +1191,8 @@ func _test_default_dirs():
 			"packages/crate/cmd", "packages/crate", "packages/not_a_package", "packages", "commands/hi", "commands", ""]:
 		DirAccess.remove_absolute(home.path_join(dir))
 
-## Enabled top-level plugins' cmd/ dirs. A .gdignore'd cmd/ (a release) is a user path, so it is
-## built against this gdsh from disk, subcommands included.
+## Enabled top-level plugins' cmd/ dirs. Any plugin cmd/, .gdignore'd (a release) or not, is a
+## user path, so it is built against this gdsh from disk, subcommands included.
 func _test_plugin_dirs():
 	var plugin = "res://addons/zz_gdsh_plugin_dirs_test"
 	DirAccess.make_dir_recursive_absolute(plugin)
@@ -1203,6 +1203,9 @@ func _test_plugin_dirs():
 		"plugin.cfg": "[plugin]\n",
 		"cmd/pdt/pdt.gd": line + 'static func get_command_name(): return "pdt"\n',
 		"cmd/pdt/sub/sub.gd": line + 'static func get_command_name(): return "sub"\nfunc _execute(ctx): ctx.append_output("sub ran"); return ExitCode.OK\n',
+		# Names a gdsh copy that isn't installed: Godot couldn't load it as written.
+		"cmd/absent/absent.gd": 'extends "res://addons/zz_no_such_copy/gdsh/src/core/command_base.gd"\n'
+				+ 'static func get_command_name(): return "absent"\n',
 	}
 	for rel in files:
 		DirAccess.make_dir_recursive_absolute(plugin.path_join(rel).get_base_dir())
@@ -1211,27 +1214,31 @@ func _test_plugin_dirs():
 	equal(Sh.Load.plugin_dirs(enabled), PackedStringArray([plugin.path_join("cmd")]), "only enabled top-level plugins with a cmd/ dir")
 	equal(Sh.Load.plugin_dirs([]), PackedStringArray(), "no enabled plugins, no dirs")
 	var cmd_file = plugin.path_join("cmd/pdt/pdt.gd")
-	check(not Sh.Load.is_user_path(cmd_file), "a plugin's cmd/ in source loads normally")
-
-	_write_file(plugin.path_join("cmd/.gdignore"), "")
-	files["cmd/.gdignore"] = ""
-	check(Sh.Load.is_user_path(cmd_file), "a .gdignore'd plugin cmd/ is a user path")
+	check(Sh.Load.is_user_path(cmd_file), "a plugin's cmd/ in source is a user path")
 	check(not Sh.Load.is_user_path(plugin.path_join("src/x.gd")), "only cmd/ counts, not the rest of the plugin")
-	var scopes = Sh.Load.load_directory(plugin.path_join("cmd"))
-	var pdt = scopes.get("pdt", {}).get("script")
-	check(pdt != null, "ignored cmd/ command loads from disk")
-	check(pdt != null and pdt.new().get_commands().has("sub"), "ignored cmd/ subcommands are found")
+	for ignored in [false, true]:
+		var label = "ignored" if ignored else "unignored"
+		if ignored:
+			_write_file(plugin.path_join("cmd/.gdignore"), "")
+			files["cmd/.gdignore"] = ""
+			check(Sh.Load.is_user_path(cmd_file), "a .gdignore'd plugin cmd/ is a user path")
+		var scopes = Sh.Load.load_directory(plugin.path_join("cmd"))
+		var pdt = scopes.get("pdt", {}).get("script")
+		check(pdt != null, label + " cmd/ command loads from disk")
+		check(pdt != null and pdt.get_base_script() == Sh.Load.CommandBase, label + " cmd/ command is built on this copy")
+		check(pdt != null and pdt.new().get_commands().has("sub"), label + " cmd/ subcommands are found")
+		check(scopes.has("absent"), label + " cmd/ command naming an absent gdsh still builds")
 
 	var paths = files.keys()
 	paths.sort()
 	paths.reverse()
 	for rel in paths:
 		DirAccess.remove_absolute(plugin.path_join(rel))
-	for dir in ["cmd/pdt/sub", "cmd/pdt", "cmd", ""]:
+	for dir in ["cmd/pdt/sub", "cmd/pdt", "cmd/absent", "cmd", ""]:
 		DirAccess.remove_absolute(plugin.path_join(dir))
 
-## A released plugin whose cmd/ extends its own bundled gdsh copy: loaded normally against that
-## copy, then rebuilt against this one, so the host's typed Context and checks accept it.
+## A released plugin whose cmd/ extends its own bundled gdsh copy, by path or by uid:// (as an
+## exporter may write it): rebuilt against this copy, so the host's typed Context and checks accept it.
 func _test_bundled_copy_rebase():
 	var plugin = "res://addons/zz_gdsh_bundled_test"
 	var stub_rel = "vendor/addons/_lib/gdsh/src/core/command_base.gd"
@@ -1239,7 +1246,11 @@ func _test_bundled_copy_rebase():
 	if FileAccess.open(plugin.path_join("plugin.cfg"), FileAccess.WRITE) == null:
 		return # res:// is read-only when the suite runs from an exported PCK.
 	var line = 'extends "%s"\n' % plugin.path_join(stub_rel)
+	var uid = ResourceUID.create_id()
+	ResourceUID.add_id(uid, plugin.path_join(stub_rel))
 	var files = {
+		"cmd/by_uid/by_uid.gd": 'extends "%s"\n' % ResourceUID.id_to_text(uid)
+				+ 'static func get_command_name(): return "by_uid"\n',
 		"plugin.cfg": "[plugin]\n",
 		# Just enough of a copy for the fixtures to compile against it.
 		stub_rel: 'extends RefCounted\nenum ExitCode {OK}\nstatic func get_command_name(): return ""\n',
@@ -1251,8 +1262,10 @@ func _test_bundled_copy_rebase():
 		DirAccess.make_dir_recursive_absolute(plugin.path_join(rel).get_base_dir())
 		_write_file(plugin.path_join(rel), files[rel])
 	var cmd_file = plugin.path_join("cmd/bundled/bundled.gd")
-	check(not Sh.Load.is_user_path(cmd_file), "a bundled copy's command is not a user path")
+	check(Sh.Load.is_user_path(cmd_file), "a bundled copy's command is a user path")
 	var scopes = Sh.Load.load_directory(plugin.path_join("cmd"))
+	var by_uid = scopes.get("by_uid", {}).get("script")
+	check(by_uid != null and by_uid.get_base_script() == Sh.Load.CommandBase, "a uid:// extends of a copy is rebuilt on this one")
 	var script = scopes.get("bundled", {}).get("script")
 	check(script != null, "a command on a bundled gdsh copy loads")
 	check(script != null and script.resource_path == cmd_file, "the rebuilt command keeps its path")
@@ -1268,7 +1281,8 @@ func _test_bundled_copy_rebase():
 	paths.reverse()
 	for rel in paths:
 		DirAccess.remove_absolute(plugin.path_join(rel))
-	for dir in ["cmd/bundled/sub", "cmd/bundled", "cmd", "vendor/addons/_lib/gdsh/src/core", "vendor/addons/_lib/gdsh/src",
+	ResourceUID.remove_id(uid)
+	for dir in ["cmd/bundled/sub", "cmd/bundled", "cmd/by_uid", "cmd", "vendor/addons/_lib/gdsh/src/core", "vendor/addons/_lib/gdsh/src",
 			"vendor/addons/_lib/gdsh", "vendor/addons/_lib", "vendor/addons", "vendor", ""]:
 		DirAccess.remove_absolute(plugin.path_join(dir))
 

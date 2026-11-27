@@ -33,17 +33,17 @@ static func is_user_path(path:String) -> bool:
 	if path.begins_with(_Anchor.root()):
 		return false
 	return not path.begins_with("res://") or path.begins_with("res://.gdsh/") or path.begins_with("res://.mcp-sh/") \
-		or _in_ignored_plugin_cmd(path)
+		or _in_plugin_cmd(path)
 
 
-## A released plugin's cmd/ may be .gdignore'd so the editor never parses it (its gdsh may be
-## absent); those commands are compiled against this copy, like ~/.gdsh ones.
-static func _in_ignored_plugin_cmd(path:String) -> bool:
+## A top-level plugin's cmd/ is built from disk against this copy, like ~/.gdsh, so it runs
+## whether or not the gdsh it names is installed. A release may still .gdignore it so the editor
+## never parses it; that doesn't change how it loads.
+static func _in_plugin_cmd(path:String) -> bool:
 	if not path.begins_with(PLUGINS_DIR):
 		return false
 	var parts = path.trim_prefix(PLUGINS_DIR).split("/")
-	return parts.size() > 2 and parts[1] == "cmd" \
-		and FileAccess.file_exists(PLUGINS_DIR.path_join(parts[0]).path_join("cmd/.gdignore"))
+	return parts.size() > 2 and parts[1] == "cmd"
 
 
 ## The shared user folder: $GDSH_HOME, else ~/.gdsh ("" without a home folder).
@@ -171,6 +171,10 @@ static func _build_user(path:String, swap_any := false) -> GDScript:
 	# Only the file's own extends is swapped, so a chain works only on a host whose CommandBase it
 	# already ends at. Refuse it before compiling, so every host gives the same reason.
 	var target = _extends_target(source)
+	# An exporter may have rewritten the extends to a uid:// or relative path to a bundled copy.
+	if not swap_any and _resolve_extends(path, target).ends_with(_COMMAND_BASE_SUFFIX) \
+			and not target.ends_with(_COMMAND_BASE_SUFFIX):
+		swap_any = true
 	if not swap_any and target.ends_with(".gd") and not target.ends_with(_COMMAND_BASE_SUFFIX):
 		error = _IN_BETWEEN
 	else:
@@ -199,6 +203,17 @@ static func _extends_target(source:String) -> String:
 		return ""
 	var target = found.get_string(1)
 	return target.substr(1, target.length() - 2) if target[0] in ["\"", "'"] else target
+
+
+## target (from _extends_target) as an absolute path: uid:// mapped, relative joined to path's dir.
+## Unresolvable uids and class names come back unchanged.
+static func _resolve_extends(path:String, target:String) -> String:
+	if target.begins_with("uid://"):
+		var id = ResourceUID.text_to_id(target)
+		return ResourceUID.get_id_path(id) if ResourceUID.has_id(id) else target
+	if target.ends_with(".gd") and target.is_relative_path():
+		return path.get_base_dir().path_join(target).simplify_path()
+	return target
 
 
 ## Failed user commands under dir, as {path: reason}. Only files still there are listed; the
