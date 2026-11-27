@@ -128,7 +128,7 @@ func _ready() -> void:
 ```
 
 In Editor Console, register the script through its normal custom-command setup and
-run `choose_item` in a docked or floating console. The shipped `editor plugin` command
+run `choose_item` in a docked or floating console. The shipped `settings plugin` command
 is another TUI example: Enter toggles an addon without closing its list.
 
 The command stays busy until the view closes. Editor Console holds its serialized
