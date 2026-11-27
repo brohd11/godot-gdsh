@@ -96,7 +96,8 @@ func load(path:String, hidden:=false) -> Dictionary:
 	if resolved.get_extension().to_lower() == "gd":
 		var script = loader.load_command(resolved)
 		if script != null:
-			loaded[script.get_command_name()] = {Types.ScopeDataKeys.SCRIPT: script}
+			for name in [script.get_command_name()] + Array(script.get_command_aliases()):
+				loaded[name] = {Types.ScopeDataKeys.SCRIPT: script}
 	else:
 		loaded = loader.load_directory(resolved)
 	var target = scopes_hidden if hidden else scopes

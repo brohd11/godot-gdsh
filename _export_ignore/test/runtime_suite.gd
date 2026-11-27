@@ -84,6 +84,7 @@ func run_frames():
 	await _test_async()
 	await _test_host()
 	await _test_host_broken_user_commands()
+	await _test_host_user_command_shape()
 	await _test_host_aborted_commands()
 	await _test_streaming_console()
 	if not Engine.is_editor_hint():
@@ -1336,6 +1337,32 @@ func _test_host_broken_user_commands():
 	for file in [broken, unnamed, wrong_base, bake, directory.path_join("tools/tools.gd")]:
 		DirAccess.remove_absolute(file)
 	for dir in ["tools/bake", "tools", ""]:
+		DirAccess.remove_absolute(directory.path_join(dir))
+
+## A user command over an in-between base is refused even when the chain ends at this host's
+## CommandBase (it would break on any other); an alias lists and runs the same script.
+func _test_host_user_command_shape():
+	var directory = "user://gdsh_command_shape_test_expected_error"
+	var base_line = 'extends "res://addons/_lib/gdsh/src/core/command_base.gd"\n'
+	DirAccess.make_dir_recursive_absolute(directory.path_join("lib"))
+	var mid = directory.path_join("lib/mid.gd") # lib/ has no lib.gd, so it isn't listed
+	_write_file(mid, base_line + 'func _execute(ctx): ctx.append_output("mid"); return ExitCode.OK\n')
+	var child = directory.path_join("child.gd")
+	_write_file(child, 'extends "%s"\nstatic func get_command_name(): return "child"\n' % mid)
+	var twin = directory.path_join("twin.gd")
+	_write_file(twin, base_line + 'static func get_command_name(): return "twin"\n'
+			+ 'static func get_command_aliases(): return PackedStringArray(["twin2"])\n'
+			+ 'func _execute(ctx): ctx.append_output("twin"); return ExitCode.OK\n')
+
+	var host = Sh.Host.new({"builtins": false, "command_dirs": [directory]})
+	equal(host.host_commands().map(func(c): return c.name), ["child", "twin", "twin2"], "an alias is listed beside its command")
+	var result = await host.host_run(["child"])
+	check(result.exit_code != 0 and result.stderr.contains("in-between base"), "an in-between base is refused: " + result.stderr)
+	equal((await host.host_run(["twin2"])).stdout.strip_edges(), "twin", "an alias runs its command")
+
+	for file in [mid, child, twin]:
+		DirAccess.remove_absolute(file)
+	for dir in ["lib", ""]:
 		DirAccess.remove_absolute(directory.path_join(dir))
 
 ## A script error aborts _execute with null: the run fails with Godot's errors instead of exiting 0

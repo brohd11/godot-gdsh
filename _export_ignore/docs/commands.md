@@ -22,6 +22,16 @@ Extend `GDSh.CommandBase`, provide a name and help metadata, and implement
 `_execute` with `null`, so a `null` result fails the command (exit 2) with the errors Godot
 logged meanwhile (Godot 4.5+), or "no exit code returned" when there were none.
 
+Extend `CommandBase` directly, not another command or shared base. A command outside
+`res://` (`~/.gdsh`, a released plugin's ignored `cmd/`) is rebuilt against whichever gdsh
+runs it, and only its own `extends` is swapped, so an in-between base is refused there. Put
+shared code in a helper the commands call. Use `get_command_aliases()` for a second name:
+
+```gdscript
+static func get_command_aliases() -> PackedStringArray:
+    return PackedStringArray(["gdtest"]) # also listed and run as `gdtest`
+```
+
 Commands may `await`; execution and console input wait for them. Commands inside
 `$(...)`(command substituion) must finish synchronously.
 

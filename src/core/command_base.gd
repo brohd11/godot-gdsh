@@ -43,6 +43,11 @@ func _host() -> String:
 static func get_command_name() -> String:
 	return _UNAMED
 
+## Extra names this command is also listed under (e.g. one a shell builtin doesn't shadow).
+## Use it instead of a second script extending this one: user commands must extend CommandBase directly.
+static func get_command_aliases() -> PackedStringArray:
+	return PackedStringArray()
+
 func __get_name__():
 	var nm = get_command_name()
 	if nm == _UNAMED:
