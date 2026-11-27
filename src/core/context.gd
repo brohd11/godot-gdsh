@@ -10,9 +10,9 @@ const Cancel = preload("res://addons/_lib/gdsh/src/core/cancel.gd")
 const FileSystem = preload("res://addons/_lib/gdsh/src/core/filesystem.gd")
 const _Anchor = preload("res://addons/_lib/gdsh/src/core/anchor.gd")
 
-## Gathers lazily loaded scripts into exports; _Anchor.path() hides them from the scan.
+## Gathers the lazily loaded tokenizer into exports; _Anchor.path() hides it from the scan.
+## execute.gd stays untagged: GDSh.Host ships it, so command-only exports don't carry the shell.
 const _TOKENIZER_PATH = "res://addons/_lib/gdsh/src/core/tokenizer.gd" #! gdp-dependency
-const _EXECUTE_PATH = "res://addons/_lib/gdsh/src/core/execute.gd" #! gdp-dependency
 
 const ExitCode = Types.ExitCode
 static var _clean_output_regex:RegEx

@@ -7,9 +7,6 @@ const Types = preload("res://addons/_lib/gdsh/src/core/types.gd")
 const CommandBase = preload("res://addons/_lib/gdsh/src/core/command_base.gd")
 const _Anchor = preload("res://addons/_lib/gdsh/src/core/anchor.gd")
 
-## Gathers the lazily loaded builtins into exports; _Anchor.path() hides them from the scan.
-const _BUILTIN_SCRIPTS_PATH = "res://addons/_lib/gdsh/src/core/builtin_scripts.gd" #! gdp-dependency
-
 const ScriptRebase = UtilR.Objects.ScriptRebase
 
 ## A user command's extends line is swapped for this copy's CommandBase when it names any gdsh
