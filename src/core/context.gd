@@ -9,6 +9,11 @@ const NodePaths = preload("res://addons/_lib/gdsh/src/core/node_paths.gd")
 const Cancel = preload("res://addons/_lib/gdsh/src/core/cancel.gd")
 const FileSystem = preload("res://addons/_lib/gdsh/src/core/filesystem.gd")
 const _Anchor = preload("res://addons/_lib/gdsh/src/core/anchor.gd")
+
+## Gathers lazily loaded scripts into exports; _Anchor.path() hides them from the scan.
+const _TOKENIZER_PATH = "res://addons/_lib/gdsh/src/core/tokenizer.gd" #! gdp-dependency
+const _EXECUTE_PATH = "res://addons/_lib/gdsh/src/core/execute.gd" #! gdp-dependency
+
 const ExitCode = Types.ExitCode
 static var _clean_output_regex:RegEx
 

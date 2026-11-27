@@ -5,6 +5,9 @@ const Lexer = preload("res://addons/_lib/gdsh/src/core/lexer.gd")
 const Context = preload("res://addons/_lib/gdsh/src/core/context.gd")
 const _Anchor = preload("res://addons/_lib/gdsh/src/core/anchor.gd")
 
+## Gathers the lazily loaded engine into exports; _Anchor.path() hides it from the scan.
+const _EXECUTE_PATH = "res://addons/_lib/gdsh/src/core/execute.gd" #! gdp-dependency
+
 static func words(input:Array, ctx:Context, completion:=false) -> Dictionary:
 	var values:Array = []
 	var metadata:Array = []
